@@ -10,12 +10,15 @@ import pickle
 from collections import Counter
 from sklearn.naive_bayes import MultinomialNB
 
+import utils
+
 
 
 
 class OpSigModel:
-    def __init__(self):
+    def __init__(self, prior_w = 0.1):
         self.reset()
+        self.prior_w = prior_w
         pass
 
     def save(self, fname):
@@ -112,6 +115,24 @@ class OpSigModel:
             self.op_sig_model_dict[k] = self.norm_cnt(op_s_cnt)
 
 
+    def evaluate(self, actionGraph):
+        log_prob = np.log(1)
+        for action in actionGraph.actions:
+            op = action.op
+            vb_idx = self.get_opSig_idx(action)
+            if op in self.op_sig_model_dict.keys():
+                log_prob = log_prob + self.prior_w * np.log(self.op_sig_cnts[vb_idx])
+                log_prob = log_prob + np.log(self.op_sig_model_dict[op][vb_idx])
+            else:
+                log_prob = log_prob + np.log(self.op_sig_cnts[vb_idx])
+        return log_prob
+
+
+class ConnectionOriginModel:
+    def __init__(self):
+        pass
+
+
 
 
 class RawMaterialModel:
@@ -152,7 +173,7 @@ class RawMaterialModel:
         self.model['raw'] = Counter(str_data_dict['raw'])
         self.model['not_raw'] = Counter(str_data_dict['not_raw'])
 
-    def predict(self, S):
+    def evaluate(self, S):
         prob_span_is_raw = 1
         for s in S:
             prob_span_is_raw = prob_span_is_raw * (self.model['raw'][s]/len(self.model['raw'].keys()))
@@ -171,7 +192,7 @@ class ApparatusModel:
         self.reset()
 
     def reset(self):
-        self.model = None #TODO
+        self.model = Counter()
 
     def save(self, fname):
         with open(fname, 'w') as f:
@@ -191,11 +212,50 @@ class ApparatusModel:
                     elif recursive and ss.origin is not None and ss.origin != self.leaf_idx:
                         aprts.extend(self.get_all_apparatus(AG.actions[ss.origin], AG, recursive))
 
+        return aprts
+
     def M_step(self, actionGraphs):
+        self.reset()
+
         for AG in actionGraphs:
             for action in AG.actions:
                 op = action.op
                 aprts = self.get_all_apparatus(action, AG, True)
+                for a in aprts:
+                    self.model[op][a] += 1
+
+
+    def evaluate(self, action_i, arg_j, str_span_k, AG):
+
+        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'location' "ERROR: Not location"
+        ss = AG.actions[action_i].ARGs[arg_j].string_spans[str_span_k]
+        op = AG.actions[action_i].op
+        ori_act_i = ss.origin
+        assert ori_act_i != self.leaf_idx
+        aprts = self.get_all_apparatus(AG.actions[ori_act_i], AG, False)
+        if ss.s:
+            found = utils.substr_match(ss.s, aprts)
+            if found:
+                return np.log(1.0)
+            else:
+                return 0 #TODO: Can we change this?
+
+        #TODO: Verify that the math is correct
+        else:
+            # aprts = self.get_all_apparatus(AG.actions[ori_act_i], AG, False)
+            max_val = 0
+            max_aprts = ''
+            op_sum = 0
+            for a in aprts:
+                if self.model[op][a] > max_val:
+                    max_val = self.model[op][a]
+                    max_aprts = a
+                op_sum += self.model[op][a]
+
+
+            return np.log(max_val/op_sum)
+
+
 
 
 
