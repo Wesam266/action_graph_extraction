@@ -127,7 +127,6 @@ class ActionGraph():
     def get_spans_in_action(self, i, j, k):
         return self.actions[i].get_span_in_arg(j, k)
 
-    def get_destination_subset(self, i):
 
 
 
