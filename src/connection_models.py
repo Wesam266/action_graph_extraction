@@ -160,7 +160,7 @@ class RawMaterialModel:
         for AG in actionGraphs:
             for action in AG.actions:
                 for arg in action.ARGs:
-                    if arg.sem_type == 'food':
+                    if arg.sem_type == 'material':
                         for ss in arg.string_spans:
                             if ss.origin == self.leaf_idx:
                                 str_data_dict['raw'].append(ss.s)
@@ -226,7 +226,7 @@ class ApparatusModel:
 
     def evaluate(self, action_i, arg_j, ss_k, AG):
 
-        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'location' "ERROR: Not location"
+        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'apparatus' "ERROR: Not Apparatus"
         ss = AG.actions[action_i].ARGs[arg_j].string_spans[ss_k]
         op = AG.actions[action_i].op
         ori_act_i = ss.origin
@@ -237,7 +237,7 @@ class ApparatusModel:
             if found:
                 return np.log(1.0)
             else:
-                return 0 #TODO: Can we change this?
+                return np.log(0.000000001) #TODO: Can we change this?
 
         #TODO: Verify that the math is correct
         else:
@@ -324,6 +324,6 @@ class PartCompositeModel:
             if ss.s:
                 cnt += self.model[ss.s][m]
             else:
-                cnt += self.model['IMPLCT_ARG'][m]
+                cnt += self.model['IMPLCT_ARG'][m] #could be incorrect
 
         return cnt/sum(self.model[ss.s].values())
