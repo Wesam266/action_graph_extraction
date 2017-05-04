@@ -169,6 +169,31 @@ class ActionGraph():
     def get_spans_in_action(self, i, j, k):
         return self.actions[i].get_span_in_arg(j, k)
 
+    def get_materials_len(self):
+        count=0
+        for action in self.actions:
+            for arg in action.ARGs:
+                if arg.sem_type == 'material':
+                    count+=1
+        return count
+
+    def get_intrmeds_len(self):
+        count=0
+        for action in self.actions:
+            for arg in action.ARGs:
+                if arg.sem_type == 'intrmed':
+                    count+=1
+        return count
+
+
+    def get_apparatus_len(self):
+        count=0
+        for action in self.actions:
+            for arg in action.ARGs:
+                if arg.sem_type == 'apparatus':
+                    count+=1
+        return count
+
 
 
 
