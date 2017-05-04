@@ -105,7 +105,7 @@ class OpSigModel:
 
                 if op not in self.op_sig_model_dict.keys():
                     self.op_sig_model_dict[op] =  np.array([0] * 8).astype(float)
-                self.op_sig_model_dict[op][idx] = self.op_sig_model_dict[op][idx] + 1
+                self.op_sig_model_dict[op][idx] += 1
 
         # normalize probs
         self.op_sig_cnts = self.norm_cnt(self.op_sig_cnts)
@@ -128,9 +128,6 @@ class OpSigModel:
         return log_prob
 
 
-class ConnectionOriginModel:
-    def __init__(self):
-        pass
 
 
 
@@ -193,6 +190,8 @@ class ApparatusModel:
 
     def reset(self):
         self.model = Counter()
+        # models how likely it is that an action v_i occurs in the location corresponding to a origin verb
+        # P(loc(origin(s_{ij}^k,C))| v_i)
 
     def save(self, fname):
         with open(fname, 'w') as f:
@@ -225,10 +224,10 @@ class ApparatusModel:
                     self.model[op][a] += 1
 
 
-    def evaluate(self, action_i, arg_j, str_span_k, AG):
+    def evaluate(self, action_i, arg_j, ss_k, AG):
 
         assert AG.actions[action_i].ARGs[arg_j].sem_type == 'location' "ERROR: Not location"
-        ss = AG.actions[action_i].ARGs[arg_j].string_spans[str_span_k]
+        ss = AG.actions[action_i].ARGs[arg_j].string_spans[ss_k]
         op = AG.actions[action_i].op
         ori_act_i = ss.origin
         assert ori_act_i != self.leaf_idx
@@ -245,14 +244,11 @@ class ApparatusModel:
             # aprts = self.get_all_apparatus(AG.actions[ori_act_i], AG, False)
             max_val = 0
             max_aprts = ''
-            op_sum = 0
             for a in aprts:
                 if self.model[op][a] > max_val:
                     max_val = self.model[op][a]
                     max_aprts = a
-                op_sum += self.model[op][a]
-
-
+            op_sum = sum(self.model[op].values())
             return np.log(max_val/op_sum)
 
 
@@ -260,6 +256,74 @@ class ApparatusModel:
 
 
 class PartCompositeModel:
+    def __init__(self, leaf_idx):
+        self.reset()
+        self.leaf_idx = leaf_idx
+        pass
 
-    pass
+    def reset(self):
+        self.model = Counter()
 
+    def save(self, fname):
+        with open(fname, 'w') as f:
+            pickle.dump(self.model, f, pickle.HIGHEST_PROTOCOL)
+
+    def load(self, fname):
+        with open(fname, 'r') as f:
+            self.model = pickle.load(f)
+
+
+
+    def get_all_materials(self, action, AG, recursive):
+        all_materials = []
+        for arg in action.ARGs:
+            if arg.sem_type == 'material' or arg.sem_type == 'intrmed':
+                for ss in arg.string_spans:
+                    all_materials.append(ss.s)
+                    if recursive and ss.origin != self.leaf_idx:
+                        all_materials.extend(self.get_all_materials(AG.actions[ss.origin], AG, recursive))
+
+        return all_materials
+
+    def get_all_intermeds(self, action, AG, recursive):
+        all_intrmeds = []
+        for arg in action.ARGs:
+            if arg.sem_type == 'intrmed':
+                for ss in arg.string_spans:
+                    all_intrmeds.append(ss.s)
+                    if recursive and ss.origin != self.leaf_idx:
+                        all_intrmeds.extend(self.get_all_materials(AG.actions[ss.origin], AG, recursive))
+        return all_intrmeds
+
+
+    def M_step(self, actionGraphs):
+        self.reset()
+        for AG in actionGraphs:
+            for action in AG.actions:
+                op = action.op
+                mtrls = self.get_all_materials(action, AG, True)
+                intrmed_prods = self.get_all_intermeds(action, AG, False)
+
+                for i in intrmed_prods:
+                    for m in mtrls:
+                        if i:
+                            self.model[i][m] += 1
+                        else:
+                            self.model['IMPLCT_ARG'][m] += 1
+
+
+    def evaluate(self, action_i, arg_j, ss_k, AG):
+        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'intrmed' "ERROR: Not Intermediate product"
+        ss = AG.actions[action_i].ARGs[arg_j].string_spans[ss_k]
+        op = AG.actions[action_i].op
+        ori_act_i = ss.origin
+        assert ori_act_i != self.leaf_idx
+        mtrls = self.get_all_materials(action_i, AG, False)
+        cnt = 0
+        for m in mtrls:
+            if ss.s:
+                cnt += self.model[ss.s][m]
+            else:
+                cnt += self.model['IMPLCT_ARG'][m]
+
+        return cnt/sum(self.model[ss.s].values())
