@@ -1,7 +1,7 @@
 import numpy as np
 import nltk
 import re
-from models import OpSigModel
+from connection_models import OpSigModel
 
 token_classes = ['null', 'amt_unit', 'amt_misc', 'cnd_unit', 'cnd_misc', 'material', 'target', 'operation',
                  'descriptor', 'prop_unit', 'prop_type', 'synth_aprt', 'char_aprt', 'brand', 'intrmed',
@@ -19,13 +19,22 @@ class StringSpan:
     def get_str(self):
         return self.s
 
+    def __str__(self):
+        s = self.s
+        s = s + ' (' + str(self.origin) + ')'
+        return s
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class Argument:
-    def __init__(self, text, syn_type, sem_type, origin=-1):
+    def __init__(self, text, syn_type, sem_type, prep='', origin=-1):
         self.syn_type = syn_type
         self.sem_type = sem_type
         self.str_spans = []
         self.isImplicit = True
+        self.prep = prep
         # strs = filter(None, text) #To remove empty string spans
         for s in text:
             self.str_spans.append(StringSpan(s))
@@ -36,6 +45,24 @@ class Argument:
 
     def set_idx(self, j):
         self.idx = j
+
+    def __str__(self):
+        s = '[' + self.syn_type + ', ' + self.sem_type + '] '
+        s = s + 'prep: ' + self.prep + '; '
+        s = s + 'string spans: '
+        for sp in self.str_spans:
+            s = s + sp.__str__() + ' , '
+        return s
+
+    def get_str(self):
+        s = ''
+        s = s + self.prep
+        for ss in self.str_spans:
+            s = s + ' ' + ss.s
+        return s.strip()
+
+    def __repr__(self):
+        return self.__str__()
 
 
 
@@ -54,6 +81,7 @@ class Action():
         material_pos_tags = []
         apparatus_pos_tags = []
         text = ''
+        prep = ''
         for annotation in sentence_annotated:
             text = text + ' ' + annotation[0]
             if annotation[1] == 'B-operation':
@@ -74,10 +102,24 @@ class Action():
                 intermeds.append(annotation[0])
             elif annotation[1] == 'I-intrmed':
                 intermeds[-1] = intermeds[-1] + ' ' + annotation[0]
+            # elif annotation[9] == 'case':
+            #     prep += annotation[0]
+            # elif annotation[9] == 'det' and prep:
+            #     prep += annotation[9]
+            # print prep
+            # prep = ''
 
-        print intermeds
+
+
+        # print intermeds
+
 
         if not self.op:
+            if len(materials) == 0:
+                materials.append('') #Implicit argument
+            if len(apparatus) == 0:
+                apparatus.append('') #Implicist argument
+
             self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=0 ))
             self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=0))
             self.ARGs.append(Argument(intermeds, 'DOBJ', 'intrmed'))
@@ -137,7 +179,7 @@ class ActionGraph():
 
 
 def test():
-    TRAIN_FILE = 'data/new_crf_features_train.txt'
+    TRAIN_FILE = '../data/new_crf_features_train.txt'
 
     annot = []
     for line in open(TRAIN_FILE):
