@@ -1,11 +1,9 @@
 import numpy as np
 import nltk
 import re
+import constants
 from connection_models import OpSigModel
 
-token_classes = ['null', 'amt_unit', 'amt_misc', 'cnd_unit', 'cnd_misc', 'material', 'target', 'operation',
-                 'descriptor', 'prop_unit', 'prop_type', 'synth_aprt', 'char_aprt', 'brand', 'intrmed',
-                 'number', 'meta', 'ref', 'prop_misc']
 
 
 class StringSpan:
@@ -45,6 +43,8 @@ class Argument:
 
     def set_idx(self, j):
         self.idx = j
+    def set_sem_type(self, sem_type):
+        self.sem_type = sem_type
 
     def __str__(self):
         s = '[' + self.syn_type + ', ' + self.sem_type + '] '
@@ -72,7 +72,6 @@ class Action():
     def __init__(self, sentence_annotated):
         self.ARGs = []
         self.is_leaf = False
-        self.origin = -1
         self.op = ''
         self.omitted = []
         materials = []
@@ -109,8 +108,6 @@ class Action():
             # print prep
             # prep = ''
 
-
-
         # print intermeds
 
 
@@ -119,6 +116,8 @@ class Action():
                 materials.append('') #Implicit argument
             if len(apparatus) == 0:
                 apparatus.append('') #Implicist argument
+            if len(intermeds) == 0:
+                intermeds.append('') #Implicist argument. Has to be removed for the first operation. #TODO
 
             self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=0 ))
             self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=0))
@@ -130,7 +129,19 @@ class Action():
 
     def set_isLeaf(self):
         self.is_leaf = True
-        self.origin = 0
+
+    def update_isLeaf(self):
+        is_leaf = True
+        for arg in self.ARGs:
+            if arg.sem_type != 'intrmed': #Intermed cannot be a leaf
+                if not is_leaf:
+                    break
+                for s in arg.string_spans:
+                    if s.origin is not constants.LEAF_INDEX:
+                        is_leaf = False
+                        break
+        self.is_leaf = is_leaf
+
 
     def set_idx(self, i):
         self.idx = i
@@ -145,6 +156,8 @@ class Action():
         return self.ARGs[j].get_str_in_span(k)
         pass
 
+
+
 class ActionGraph():
     def __init__(self, recipes_annotated):
         self.actions = []
@@ -156,10 +169,11 @@ class ActionGraph():
             else:
                 sentence.append((annotation))
 
-        self.actions[0].set_isLeaf()
-        opsig = OpSigModel()
-        # for a in self.actions:
-        #     print opsig.get_opSig_idx(a)
+        for i, act in enumerate(self.actions):
+            act.set_idx(i)
+
+        self.seq_init()
+
 
 
     def set_action_indices(self):
@@ -194,13 +208,16 @@ class ActionGraph():
                     count+=1
         return count
 
+    def seq_init(self):
+        self.actions[0].set_isLeaf()
 
-
-
-
-
-
-
+        for i, act in enumerate(self.actions):
+            if i > constants.LEAF_INDEX+1:
+                c = 0
+                for arg in act.ARGs:
+                    if  arg.sem_type == 'intrmed':
+                        for ss in arg.string_spans:
+                            ss.set_origin(i-1)
 
 
 def test():
