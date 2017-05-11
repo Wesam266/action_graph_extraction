@@ -239,11 +239,11 @@ class ActionGraphExtractor:
                                     improved = True
                                     num_changes = num_changes + 1
 
-                            else:
-                                swapped_back = self.OP_2SWAP(AG, prev_si, cur_si)
+                                else:
+                                    swapped_back = self.OP_2SWAP(AG, prev_si, cur_si)
 
-                                if not swapped_back:
-                                    print 'error'
+                                    if not swapped_back:
+                                        print 'error'
 
                         prev_ss_idx.append(cur_si)
 
