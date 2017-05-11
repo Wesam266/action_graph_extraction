@@ -66,7 +66,6 @@ class ActionGraphExtractor:
         ibm_model_epsilon = 1
         num_materials = AG.get_materials_len()
         num_intrmeds = AG.get_intrmeds_len()
-
         opSigProb = self.opSigModel.evaluate(AG)
         log_prob += opSigProb
 
@@ -96,13 +95,14 @@ class ActionGraphExtractor:
                         else:
                             prob = self.apparatusModel.evaluate(act_i, arg_j, ss_k, AG)
                             app_prob = app_prob + prob
-                    log_prob = log_prob + app_prob + (ibm_model_epsilon/((num_materials+1)**num_intrmeds))*pc_prob
+                    log_prob = log_prob + app_prob + np.log(ibm_model_epsilon) \
+                                - num_intrmeds * np.log(num_materials+1) + pc_prob
 
         raw_probs = self.rawMaterialModel.evaluate(raw_materials)
         if verbose:
-            print 'rawMaterialProb ', np.sum(np.log(raw_probs))
+            print 'rawMaterialProb ', np.sum(raw_probs)
 
-        log_prob = log_prob + np.sum(np.log(raw_probs))
+        log_prob = log_prob + np.sum(raw_probs)
         if verbose:
             print 'full prob ', log_prob
 
@@ -137,17 +137,21 @@ class ActionGraphExtractor:
         ori1_i = ss1.origin
         ori2_i = ss2.origin
 
-        if ori1_i == ori2_i:
-            # same origin, no need to swap
-            print "Same origin"
-            return False
-
         act1_i, arg1_j, ss1_k = s1_idx
         act2_i, arg2_j, ss2_k = s2_idx
 
+        # print ori1_i, ori2_i
+        # print act1_i, act2_i
+        if ori1_i == ori2_i:
+            # same origin, no need to swap
+            # print "Same origin"
+            return False
+
+
+
         if ori1_i >= act2_i or ori2_i >= act1_i:
             # output to previous act is impossible
-            print "Origin greater than action"
+            # print "Origin greater than action"
             return False
 
         arg1 = AG.actions[act1_i].ARGs[arg1_j]

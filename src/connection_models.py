@@ -181,7 +181,10 @@ class RawMaterialModel:
             prob_span_is_raw = prob_span_is_raw * (self.model['raw'][s]/len(self.model['raw'].keys()))
                                                   # Count of string s seen as 'raw'/total 'raw' words seen
 
-        return prob_span_is_raw
+        if prob_span_is_raw > 0:
+            return np.log(prob_span_is_raw)
+        else:
+            return np.log(0.000000001)
 
 
 
@@ -350,4 +353,4 @@ class PartCompositeModel:
                 cnt += self.model['IMPLCT_ARG'][m] #could be incorrect
         alpha = 1.0
 
-        return (alpha*(cnt+1))/(sum(self.model[ss.s].values()) + alpha*self.val_sum)
+        return np.log((alpha*(cnt+1))/(sum(self.model[ss.s].values()) + alpha*self.val_sum))
