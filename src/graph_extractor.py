@@ -13,7 +13,7 @@ import constants
 
 class ActionGraphExtractor:
     def __init__(self):
-
+        print "EXTRACTOR: Initializing"
         self.actionGraphs = []
         self.prior_w = 0.1
 
@@ -47,7 +47,19 @@ class ActionGraphExtractor:
         self.rawMaterialModel.load(os.path.join(save_dir, constants.RAW_MATERIAL_MODEL_FILE))
         self.partCompositeModel.load(os.path.join(save_dir, constants.PART_COMP_MODEL_FILE))
         self.apparatusModel.load(os.path.join(save_dir, constants.APP_MODEL_FILE))
-        pass
+
+    def load_train_file(self, train_file):
+        print "EXTRACTOR: Loading Training data"
+        annot = []
+        for line in open(train_file):
+            split = line.strip().split("\t")
+            if '<END_PROCESS>' in line:
+                self.actionGraphs.append(graph_elements.ActionGraph(annot))
+                annot = []
+            else:
+                annot.append(split)
+
+
 
     def evaluate_models(self, AG, verbose=False):
         log_prob = np.log(1)
@@ -59,7 +71,7 @@ class ActionGraphExtractor:
         log_prob += opSigProb
 
         if verbose:
-            print 'verbSigProb ', opSigProb
+            print 'opSigProb ', opSigProb
 
         pc_prob = 0
         app_prob = 0
@@ -69,14 +81,14 @@ class ActionGraphExtractor:
             for arg_j, arg in enumerate(action.ARGs):
                 for ss_k, ss in enumerate(arg.str_spans):
                     log_prob_c = np.log(1)
-                    if arg.sem_type == 'material':
-                        if ss.origin == self.leaf_idx:
-                            raw_materials.append(ss.s)
-                        else:
-                            prob = self.partCompositeModel.evaluate(act_i, arg_j, ss_k, AG)
-                            pc_prob += pc_prob + prob
+                    if arg.sem_type == constants.MATERIAL_TAG:
+                        # if ss.origin == self.leaf_idx:
+                        raw_materials.append(ss.s)
+                    elif arg.sem_type == constants.INTERMEDIATE_PRODUCT_TAG:
+                        prob = self.partCompositeModel.evaluate(act_i, arg_j, ss_k, AG)
+                        pc_prob += pc_prob + prob
 
-                    elif arg.sem_type == 'location':
+                    elif arg.sem_type == constants.APPARATUS_TAG:
                         if ss.origin == self.leaf_idx:
                             # TODO: decide what to do
                             # log_prob_c = log_prob_c
@@ -127,6 +139,7 @@ class ActionGraphExtractor:
 
         if ori1_i == ori2_i:
             # same origin, no need to swap
+            print "Same origin"
             return False
 
         act1_i, arg1_j, ss1_k = s1_idx
@@ -134,6 +147,7 @@ class ActionGraphExtractor:
 
         if ori1_i >= act2_i or ori2_i >= act1_i:
             # output to previous act is impossible
+            print "Origin greater than action"
             return False
 
         arg1 = AG.actions[act1_i].ARGs[arg1_j]
@@ -146,6 +160,7 @@ class ActionGraphExtractor:
         # => if no str_span, then cannot switch to -1
         if arg1.syn_type == 'DOBJ' and ss1.s == '' and ori2_i == self.leaf_idx \
         or arg2.syn_type == 'DOBJ' and ss2.s == '' and ori1_i == self.leaf_idx:
+            print "no str_span, cannot switch to -1"
             return False
 
         act1 = AG.actions[act1_i]
@@ -196,30 +211,30 @@ class ActionGraphExtractor:
         while improved and iter < max_iter:
             assert not( iter > 0 and np.isinf(p_AG))
             print 'iter: %d' % iter
-            logging.debug('iter: %d' % iter)
+            # logging.debug('iter: %d' % iter)
             improved = False
             prev_ss_idx = []
             for act_i, act in enumerate(AG.actions):
                 for arg_j, arg in enumerate(act.ARGs):
-                    for ss_k, ss in enumerate(arg.string_spans):
+                    for ss_k, ss in enumerate(arg.str_spans):
                         cur_si = (act_i, arg_j, ss_k)
                         for prev_si in prev_ss_idx:
                             a_prev, _, _ = prev_si
                             a_cur, _, _ = cur_si
-                            ori_ap_str = AG.actions[a_prev].__str__()
-                            ori_ac_str = AG.actions[a_cur].__str__()
+                            # ori_ap_str = AG.actions[a_prev].__str__()
+                            # ori_ac_str = AG.actions[a_cur].__str__()
                             swapped = self.OP_2SWAP(AG, prev_si, cur_si)
                             if swapped:
                                 new_p = self.evaluate_models(AG)
 
                                 if new_p > p_AG:
-                                    logging.debug('%s prob improved from %f to %f' % (AG, p_AG, new_p))
-                                    logging.debug(prev_si, cur_si)
-                                    logging.debug(ori_ap_str)
-                                    logging.debug(ori_ac_str)
-                                    logging.debug(AG.actions[a_prev])
-                                    logging.debug(AG.actions[a_cur])
-
+                                    # logging.debug('%s prob improved from %f to %f' % (AG, p_AG, new_p))
+                                    # logging.debug(prev_si, cur_si)
+                                    # logging.debug(ori_ap_str)
+                                    # logging.debug(ori_ac_str)
+                                    # logging.debug(AG.actions[a_prev])
+                                    # logging.debug(AG.actions[a_cur])
+                                    print '%s prob improved from %f to %f' % (iter, p_AG, new_p)
                                     p_AG = new_p
                                     improved = True
                                     num_changes = num_changes + 1
@@ -241,21 +256,22 @@ class ActionGraphExtractor:
         # find the best graph locally
         num_changes = 0
         for i, AG in enumerate(self.actionGraphs):
-            print 'graph %d' % i
-            logging.debug('graph %d' % i)
+            print 'Graph %d:' % i
+            # logging.debug('graph %d' % i)
             num_changes_graph = self.local_search(AG)
             num_changes = num_changes + num_changes_graph
 
-            if i % 100 == 0:
-                tmp_save_fname = os.path.join(self.dump_dir, 'actionGraphs_%d.pkl' % i)
-                with open(tmp_save_fname, 'w') as f:
-                    pickle.dump(self.actionGraphs, f, pickle.HIGHEST_PROTOCOL)
+            # if i % 100 == 0:
+            #     tmp_save_fname = os.path.join(self.dump_dir, 'actionGraphs_%d.pkl' % i)
+            #     with open(tmp_save_fname, 'w') as f:
+            #         pickle.dump(self.actionGraphs, f, pickle.HIGHEST_PROTOCOL)
 
         return num_changes
 
     def M_step_all(self):
-        print 'M step all'
+        print 'EXTRACTOR: M step all'
         AGs = self.actionGraphs
+        # print self.actionGraphs
         self.opSigModel.M_step(AGs)
         self.partCompositeModel.M_step(AGs)
         self.rawMaterialModel.M_step(AGs)

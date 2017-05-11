@@ -14,8 +14,8 @@ class StringSpan:
     def set_origin(self,i):
         self.origin = i
 
-    def get_str(self):
-        return self.s
+    # def get_str(self):
+    #     return self.s
 
     def __str__(self):
         s = self.s
@@ -38,8 +38,8 @@ class Argument:
             self.str_spans.append(StringSpan(s))
             self.str_spans[-1].set_origin(origin)
 
-    def get_str_in_span(self, k):
-        return self.str_spans[k].get_str()
+    # def get_str_in_span(self, k):
+    #     return self.str_spans[k].get_str()
 
     def set_idx(self, j):
         self.idx = j
@@ -108,22 +108,23 @@ class Action():
             # print prep
             # prep = ''
 
-        # print intermeds
 
-
-        if not self.op:
-            if len(materials) == 0:
-                materials.append('') #Implicit argument
+        if self.op:
+            # if len(materials) == 0:
+            #     materials.append('') #Implicit argument
             if len(apparatus) == 0:
-                apparatus.append('') #Implicist argument
+                apparatus.append('') #Implicit argument
             if len(intermeds) == 0:
-                intermeds.append('') #Implicist argument. Has to be removed for the first operation. #TODO
+                intermeds.append('') #Implicit argument. #TODO Has to be removed for the first operation.
 
-            self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=0 ))
+            self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=0))
             self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=0))
             self.ARGs.append(Argument(intermeds, 'DOBJ', 'intrmed'))
+
+
         else:
             self.omitted.append(text)
+
 
 
 
@@ -136,7 +137,7 @@ class Action():
             if arg.sem_type != 'intrmed': #Intermed cannot be a leaf
                 if not is_leaf:
                     break
-                for s in arg.string_spans:
+                for s in arg.str_spans:
                     if s.origin is not constants.LEAF_INDEX:
                         is_leaf = False
                         break
@@ -152,10 +153,21 @@ class Action():
             self.ARGs[j].set_idx(j)
 
 
-    def get_span_in_arg(self, j, k):
-        return self.ARGs[j].get_str_in_span(k)
-        pass
+    # def get_span_in_arg(self, j, k):
+    #     return self.ARGs[j].get_str_in_span(k)
+    #     pass
 
+    def rm_arg(self, i):
+        del self.ARGs[i]
+
+    def __str__(self):
+        s = 'Operation: ' + self.op + '\n'
+        for arg in self.ARGs:
+            s = s + arg.__str__() + '\n'
+        return s
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class ActionGraph():
@@ -180,8 +192,15 @@ class ActionGraph():
         for i in range(len(self.actions)):
             self.actions[i].set_idx(i)
 
-    def get_spans_in_action(self, i, j, k):
-        return self.actions[i].get_span_in_arg(j, k)
+    # def get_spans_in_action(self, i, j, k):
+    #     return self.actions[i].get_span_in_arg(j, k)
+
+    def get_str_span(self, ss_idx):
+        act_i, arg_j, ss_k = ss_idx
+        if ss_k < 0:
+            return None
+        else:
+            return self.actions[act_i].ARGs[arg_j].str_spans[ss_k]
 
     def get_materials_len(self):
         count=0
@@ -210,18 +229,20 @@ class ActionGraph():
 
     def seq_init(self):
         self.actions[0].set_isLeaf()
-
+        for i, arg in enumerate(self.actions[0].ARGs):
+            if arg.sem_type == 'intrmed':
+                self.actions[0].rm_arg(i)
         for i, act in enumerate(self.actions):
             if i > constants.LEAF_INDEX+1:
                 c = 0
                 for arg in act.ARGs:
                     if  arg.sem_type == 'intrmed':
-                        for ss in arg.string_spans:
+                        for ss in arg.str_spans:
                             ss.set_origin(i-1)
 
 
 def test():
-    TRAIN_FILE = '../data/new_crf_features_train.txt'
+    TRAIN_FILE = '../data/exp2.txt'
 
     annot = []
     for line in open(TRAIN_FILE):

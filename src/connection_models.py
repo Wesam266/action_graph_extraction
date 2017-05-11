@@ -7,13 +7,13 @@ Code adapted from
 import numpy as np
 import nltk
 import pickle
-from collections import Counter
+from collections import Counter, defaultdict
 from sklearn.naive_bayes import MultinomialNB
 
 import utils
+import constants
 
-
-
+VERBOSE=True
 
 class OpSigModel:
     def __init__(self, prior_w = 0.1):
@@ -113,6 +113,8 @@ class OpSigModel:
             op_s_cnt = np.copy(self.op_sig_model_dict[k])
             op_s_cnt = op_s_cnt + len(self.op_sig_cnts) * self.op_sig_cnts
             self.op_sig_model_dict[k] = self.norm_cnt(op_s_cnt)
+        if VERBOSE:
+            print 'Opsig model: ', self.op_sig_model_dict
 
 
     def evaluate(self, actionGraph):
@@ -161,14 +163,17 @@ class RawMaterialModel:
             for action in AG.actions:
                 for arg in action.ARGs:
                     if arg.sem_type == 'material':
-                        for ss in arg.string_spans:
-                            if ss.origin == self.leaf_idx:
-                                str_data_dict['raw'].append(ss.s)
-                            else:
-                                str_data_dict['not_raw'].append(ss.s)
+                        for ss in arg.str_spans:
+                            # if ss.origin == self.leaf_idx:
+                            str_data_dict['raw'].append(ss.s)
+                            # else:
+                    elif arg.sem_type == constants.INTERMEDIATE_PRODUCT_TAG:
+                        for ss in arg.str_spans:
+                            str_data_dict['not_raw'].append(ss.s)
 
         self.model['raw'] = Counter(str_data_dict['raw'])
         self.model['not_raw'] = Counter(str_data_dict['not_raw'])
+        print 'Raw material model: ', self.model
 
     def evaluate(self, S):
         prob_span_is_raw = 1
@@ -189,7 +194,7 @@ class ApparatusModel:
         self.reset()
 
     def reset(self):
-        self.model = Counter()
+        self.model = defaultdict(Counter)
         # models how likely it is that an action v_i occurs in the location corresponding to a origin verb
         # P(loc(origin(s_{ij}^k,C))| v_i)
 
@@ -205,7 +210,7 @@ class ApparatusModel:
         aprts = []
         for arg in action.ARGs:
             if arg.sem_type == 'apparatus':
-                for ss in arg.string_spans:
+                for ss in arg.str_spans:
                     if ss.s:
                         aprts.append(ss.s)
                     elif recursive and ss.origin is not None and ss.origin != self.leaf_idx:
@@ -219,15 +224,22 @@ class ApparatusModel:
         for AG in actionGraphs:
             for action in AG.actions:
                 op = action.op
-                aprts = self.get_all_apparatus(action, AG, True)
+                aprts = self.get_all_apparatus(action, AG, False)
                 for a in aprts:
                     self.model[op][a] += 1
+        self.val_sum = 0
+        for i in self.model.keys():
+            self.val_sum += len(self.model[i].values())
+        if VERBOSE:
+            print 'Apparatus Model: ', self.model
+
+
 
 
     def evaluate(self, action_i, arg_j, ss_k, AG):
 
-        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'apparatus' "ERROR: Not Apparatus"
-        ss = AG.actions[action_i].ARGs[arg_j].string_spans[ss_k]
+        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'apparatus', "ERROR: Not Apparatus"
+        ss = AG.actions[action_i].ARGs[arg_j].str_spans[ss_k]
         op = AG.actions[action_i].op
         ori_act_i = ss.origin
         assert ori_act_i != self.leaf_idx
@@ -249,7 +261,8 @@ class ApparatusModel:
                     max_val = self.model[op][a]
                     max_aprts = a
             op_sum = sum(self.model[op].values())
-            return np.log(max_val/op_sum)
+            alpha = 1.0
+            return np.log((alpha*(max_val+1))/(op_sum + alpha*self.val_sum))
 
 
 
@@ -262,7 +275,7 @@ class PartCompositeModel:
         pass
 
     def reset(self):
-        self.model = Counter()
+        self.model = defaultdict(Counter)
 
     def save(self, fname):
         with open(fname, 'w') as f:
@@ -276,9 +289,10 @@ class PartCompositeModel:
 
     def get_all_materials(self, action, AG, recursive):
         all_materials = []
+
         for arg in action.ARGs:
             if arg.sem_type == 'material' or arg.sem_type == 'intrmed':
-                for ss in arg.string_spans:
+                for ss in arg.str_spans:
                     all_materials.append(ss.s)
                     if recursive and ss.origin != self.leaf_idx:
                         all_materials.extend(self.get_all_materials(AG.actions[ss.origin], AG, recursive))
@@ -289,7 +303,7 @@ class PartCompositeModel:
         all_intrmeds = []
         for arg in action.ARGs:
             if arg.sem_type == 'intrmed':
-                for ss in arg.string_spans:
+                for ss in arg.str_spans:
                     all_intrmeds.append(ss.s)
                     if recursive and ss.origin != self.leaf_idx:
                         all_intrmeds.extend(self.get_all_materials(AG.actions[ss.origin], AG, recursive))
@@ -300,8 +314,9 @@ class PartCompositeModel:
         self.reset()
         for AG in actionGraphs:
             for action in AG.actions:
+
                 op = action.op
-                mtrls = self.get_all_materials(action, AG, True)
+                mtrls = self.get_all_materials(action, AG, False) #has to be changed to true
                 intrmed_prods = self.get_all_intermeds(action, AG, False)
 
                 for i in intrmed_prods:
@@ -310,20 +325,29 @@ class PartCompositeModel:
                             self.model[i][m] += 1
                         else:
                             self.model['IMPLCT_ARG'][m] += 1
+        self.val_sum = 0
+        for i in self.model.keys():
+            self.val_sum += len(self.model[i].values())
+
+        if VERBOSE:
+            print 'Part Composite model: ', self.model
 
 
     def evaluate(self, action_i, arg_j, ss_k, AG):
-        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'intrmed' "ERROR: Not Intermediate product"
-        ss = AG.actions[action_i].ARGs[arg_j].string_spans[ss_k]
+        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'intrmed', "ERROR: Not Intermediate product"
+        ss = AG.actions[action_i].ARGs[arg_j].str_spans[ss_k]
         op = AG.actions[action_i].op
         ori_act_i = ss.origin
+        # print action_i, arg_j, ss_k, ss.origin
+        # print ss.s
         assert ori_act_i != self.leaf_idx
-        mtrls = self.get_all_materials(action_i, AG, False)
+        mtrls = self.get_all_materials(AG.actions[action_i], AG, False)
         cnt = 0
         for m in mtrls:
             if ss.s:
                 cnt += self.model[ss.s][m]
             else:
                 cnt += self.model['IMPLCT_ARG'][m] #could be incorrect
+        alpha = 1.0
 
-        return cnt/sum(self.model[ss.s].values())
+        return (alpha*(cnt+1))/(sum(self.model[ss.s].values()) + alpha*self.val_sum)
