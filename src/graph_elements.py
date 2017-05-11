@@ -240,6 +240,13 @@ class ActionGraph():
                         for ss in arg.str_spans:
                             ss.set_origin(i-1)
 
+    def __str__(self):
+        graph = ''
+        for act in self.actions:
+            graph += act.__str__() + '\n'
+        return graph
+
+
 
 def test():
     TRAIN_FILE = '../data/exp2.txt'

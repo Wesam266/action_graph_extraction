@@ -11,8 +11,12 @@ def main():
     AGE.load_train_file(constants.TRAIN_FILE)
     AGE.M_step_all()
     print AGE.local_search_all()
-    AGE.M_step_all()
-    print AGE.local_search_all()
+    # AGE.M_step_all()
+    # print AGE.local_search_all()
+
+
+    for AG in AGE.actionGraphs:
+        print AG
 
 
 if  __name__ == '__main__':
