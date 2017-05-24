@@ -51,11 +51,18 @@ class ActionGraphExtractor:
     def load_train_file(self, train_file):
         print "EXTRACTOR: Loading Training data"
         annot = []
+        isBegin = False
         for line in open(train_file):
             split = line.strip().split("\t")
-            if '<END_PROCESS>' in line:
-                self.actionGraphs.append(graph_elements.ActionGraph(annot))
-                annot = []
+            if split[0] != '' and len(split) != 1:
+                if split[2] == '0' and isBegin == True :
+                    self.actionGraphs.append(graph_elements.ActionGraph(annot))
+                    annot = []
+                    annot.append(split)
+                    isBegin = False
+                else:
+                    isBegin = True
+                    annot.append(split)
             else:
                 annot.append(split)
 
@@ -164,23 +171,29 @@ class ActionGraphExtractor:
         # => if no str_span, then cannot switch to -1
         if arg1.syn_type == 'DOBJ' and ss1.s == '' and ori2_i == self.leaf_idx \
         or arg2.syn_type == 'DOBJ' and ss2.s == '' and ori1_i == self.leaf_idx:
-            print "no str_span, cannot switch to -1"
+            # print "no str_span, cannot switch to -1"
             return False
 
         act1 = AG.actions[act1_i]
         act2 = AG.actions[act2_i]
 
-        ori_act1_out = self.get_new_sem_type(act1)
-        ori_act2_out = self.get_new_sem_type(act2)
+        # ori_act1_out = self.get_new_sem_type(act1)
+        # ori_act2_out = self.get_new_sem_type(act2)
 
         # swap
         ori_sem_type1 = arg1.sem_type
         ori_sem_type2 = arg2.sem_type
 
-        if ori_sem_type2 != '':
-            arg1.set_sem_type(ori_sem_type2)
-        if ori_sem_type1 != '':
-            arg2.set_sem_type(ori_sem_type1)
+        if ori_sem_type2 == '':
+            if ori_sem_type1 == constants.MATERIAL_TAG:
+                arg1.set_sem_type(constants.INTERMEDIATE_PRODUCT_TAG)
+            else:
+                arg1.set_sem_type(ori_sem_type2)
+        if ori_sem_type1 == '':
+            if ori_sem_type2 == constants.MATERIAL_TAG:
+                arg2.set_sem_type(constants.INTERMEDIATE_PRODUCT_TAG)
+            else:
+                arg2.set_sem_type(ori_sem_type1)
 
         ss1.set_origin(ori2_i)
         ss2.set_origin(ori1_i)
@@ -190,18 +203,18 @@ class ActionGraphExtractor:
         #TODO - Update implicit argument sem type
 
 
-        # check if make other connection infeasible
-        new_act1_out = self.get_new_sem_type(act1)
-        new_act2_out = self.get_new_sem_type(act2)
-        if ori_act1_out != new_act1_out or ori_act2_out != new_act2_out:
-            # reset swap
-            arg1.set_sem_type(ori_sem_type1)
-            arg2.set_sem_type(ori_sem_type2)
-            ss1.set_origin(ori1_i)
-            ss2.set_origin(ori2_i)
-            act1.update_isLeaf()
-            act2.update_isLeaf()
-            #TODO -Update implicit argument sem type
+        # # check if make other connection infeasible
+        # new_act1_out = self.get_new_sem_type(act1)
+        # new_act2_out = self.get_new_sem_type(act2)
+        # if ori_act1_out != new_act1_out or ori_act2_out != new_act2_out:
+        #     # reset swap
+        #     arg1.set_sem_type(ori_sem_type1)
+        #     arg2.set_sem_type(ori_sem_type2)
+        #     ss1.set_origin(ori1_i)
+        #     ss2.set_origin(ori2_i)
+        #     act1.update_isLeaf()
+        #     act2.update_isLeaf()
+        #     #TODO -Update implicit argument sem type
 
 
     def local_search(self, AG):

@@ -83,33 +83,35 @@ class Action():
         prep = ''
         for annotation in sentence_annotated:
             text = text + ' ' + annotation[0]
+            # print annotation
             if annotation[1] == 'B-operation':
                 self.op = annotation[0]
             elif annotation[1] == 'I-operation':
                 self.op = self.op + ' ' + annotation[0]
             elif annotation[1] == 'B-material':
                 materials.append(annotation[0])
-                material_pos_tags.append(annotation[5])
+                material_pos_tags.append(annotation[6])
             elif annotation[1] == 'I-material':
                 materials[-1] = materials[-1] + ' ' + annotation[0]
             elif annotation[1] == 'B-synth_aprt':
                 apparatus.append(annotation[0])
-                apparatus_pos_tags.append(annotation[5])
+                apparatus_pos_tags.append(annotation[6])
             elif annotation[1] == 'I-synth_aprt':
                 apparatus[-1] = apparatus[-1] + ' ' + annotation[0]
             elif annotation[1] == 'B-intrmed':
                 intermeds.append(annotation[0])
             elif annotation[1] == 'I-intrmed':
                 intermeds[-1] = intermeds[-1] + ' ' + annotation[0]
-            # elif annotation[9] == 'case':
+            # elif annotation[10] == 'case':
             #     prep += annotation[0]
-            # elif annotation[9] == 'det' and prep:
-            #     prep += annotation[9]
+            # elif annotation[10] == 'det' and prep:
+            #     prep += annotation[0]
             # print prep
             # prep = ''
 
 
         if self.op:
+            # print self.op
             # if len(materials) == 0:
             #     materials.append('') #Implicit argument
             if len(apparatus) == 0:
@@ -117,8 +119,8 @@ class Action():
             if len(intermeds) == 0:
                 intermeds.append('') #Implicit argument. #TODO Has to be removed for the first operation.
 
-            self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=0))
-            self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=0))
+            self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=constants.LEAF_INDEX))
+            self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=constants.LEAF_INDEX))
             self.ARGs.append(Argument(intermeds, 'DOBJ', 'intrmed'))
 
 

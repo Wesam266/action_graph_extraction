@@ -13,6 +13,6 @@ IMPLICIT_ARGUMENT_TAG = 'IMPLICIT_ARG'
 
 LEAF_INDEX = -1
 
-TRAIN_FILE='../data/exp2.txt'
+TRAIN_FILE='../data/new_crf_features_train.txt'
 DEV_FILE=''
 TEST_FILE=''
