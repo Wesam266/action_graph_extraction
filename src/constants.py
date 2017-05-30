@@ -13,6 +13,7 @@ IMPLICIT_ARGUMENT_TAG = 'IMPLICIT_ARG'
 
 LEAF_INDEX = -1
 
-TRAIN_FILE='../data/new_crf_features_train.txt'
+# Use the results of the named entity recognition.
+TRAIN_FILE='../../../material_science_ner/data/predictions/new_crf_train_pred_idx.txt'
 DEV_FILE=''
 TEST_FILE=''
