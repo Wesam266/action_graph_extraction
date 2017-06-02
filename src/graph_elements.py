@@ -80,6 +80,8 @@ class Action():
         material_pos_tags = []
         apparatus_pos_tags = []
         text = ''
+        # Is this the prepositional phrase? "Every action
+        # is assigned an implicite PP" from the paper?
         prep = ''
         for annotation in sentence_annotated:
             text = text + ' ' + annotation[0]
@@ -252,27 +254,12 @@ class ActionGraph():
 
 def test():
     TRAIN_FILE = '../data/exp2.txt'
-
     annot = []
     for line in open(TRAIN_FILE):
         split = line.strip().split("\t")
         annot.append(split)
 
-    ActionGraph(annot)
+    print ActionGraph(annot)
 
 if __name__ == '__main__':
     test()
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -49,23 +49,34 @@ class ActionGraphExtractor:
         self.apparatusModel.load(os.path.join(save_dir, constants.APP_MODEL_FILE))
 
     def load_train_file(self, train_file):
-        print "EXTRACTOR: Loading Training data"
         annot = []
-        isBegin = False
+        next_rec_begin = False
+        recipe_count = 0
         for line in open(train_file):
             split = line.strip().split("\t")
+            # If not a blank line look some more.
             if split[0] != '' and len(split) != 1:
-                if split[2] == '0' and isBegin == True :
+                # If the next recipe is beginning then make a AG
+                # with the actions (sentences) you have so far.
+                if split[2] == '0' and next_rec_begin == True:
                     self.actionGraphs.append(graph_elements.ActionGraph(annot))
+                    recipe_count += 1
                     annot = []
                     annot.append(split)
-                    isBegin = False
+                    next_rec_begin = False
                 else:
-                    isBegin = True
+                    next_rec_begin = True
                     annot.append(split)
             else:
+                # Append blank lines so that they can be used to
+                # distinguish between sentences. Could also be done
+                # with the sentence indices I think.
                 annot.append(split)
+        # Handle last recipe individually.
+        self.actionGraphs.append(graph_elements.ActionGraph(annot))
+        recipe_count += 1
 
+        print('EXTRACTOR: Loaded {} recipes'.format(recipe_count))
 
 
     def evaluate_models(self, AG, verbose=False):
@@ -293,5 +304,3 @@ class ActionGraphExtractor:
         self.partCompositeModel.M_step(AGs)
         self.rawMaterialModel.M_step(AGs)
         self.apparatusModel.M_step(AGs)
-
-

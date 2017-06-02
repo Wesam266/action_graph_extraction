@@ -8,6 +8,7 @@ import numpy as np
 import nltk
 import pickle
 from collections import Counter, defaultdict
+import pprint
 from sklearn.naive_bayes import MultinomialNB
 
 import utils
@@ -114,7 +115,7 @@ class OpSigModel:
             op_s_cnt = op_s_cnt + len(self.op_sig_cnts) * self.op_sig_cnts
             self.op_sig_model_dict[k] = self.norm_cnt(op_s_cnt)
         if VERBOSE:
-            print 'Opsig model: ', self.op_sig_model_dict
+            print 'Opsig model: ', pprint.pprint(self.op_sig_model_dict)
 
 
     def evaluate(self, actionGraph):
@@ -234,7 +235,7 @@ class ApparatusModel:
         for i in self.model.keys():
             self.val_sum += len(self.model[i].values())
         if VERBOSE:
-            print 'Apparatus Model: ', self.model
+            print 'Apparatus Model: ', pprint.pprint(dict(self.model))
 
 
 
@@ -333,7 +334,7 @@ class PartCompositeModel:
             self.val_sum += len(self.model[i].values())
 
         if VERBOSE:
-            print 'Part Composite model: ', self.model
+            print 'Part Composite model: ', pprint.pprint(dict(self.model))
 
 
     def evaluate(self, action_i, arg_j, ss_k, AG):
