@@ -77,6 +77,8 @@ class Action():
         materials = []
         apparatus = []
         intermeds = []
+        # These pos tags don't seem to be used anywhere. Why are they being
+        # used then?
         material_pos_tags = []
         apparatus_pos_tags = []
         text = ''
@@ -178,12 +180,18 @@ class ActionGraph():
     def __init__(self, recipes_annotated):
         self.actions = []
         sentence = []
+        sentence_ann = []
         for annotation in recipes_annotated:
             if annotation[0] == '' and len(annotation) == 1:
-                self.actions.append(Action(sentence))
-                sentence = []
+                # Only add the sentence as an action if it has a op in it.
+                if ('B-operation' in sentence_ann) or \
+                    ('I-operation' in sentence_ann):
+                    self.actions.append(Action(sentence))
+                    sentence = []
+                sentence_ann = []
             else:
-                sentence.append((annotation))
+                sentence.append(annotation)
+                sentence_ann.append(annotation[1])
 
         for i, act in enumerate(self.actions):
             act.set_idx(i)

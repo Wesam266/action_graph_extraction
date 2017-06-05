@@ -18,7 +18,8 @@ def main():
     # print AGE.local_search_all()
 
 
-    for AG in AGE.actionGraphs:
+    for i, AG in enumerate(AGE.actionGraphs):
+        print('\n\n\nAction graph {}'.format(i))
         print AG
 
 
