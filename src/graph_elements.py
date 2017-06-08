@@ -106,6 +106,8 @@ class Action():
                 intermeds.append(annotation[0])
             elif annotation[1] == 'I-intrmed':
                 intermeds[-1] = intermeds[-1] + ' ' + annotation[0]
+            # The prepositional phrases are all ignored for now. I confirmed
+            # this with SKC. This needs to be implemented.
             # elif annotation[10] == 'case':
             #     prep += annotation[0]
             # elif annotation[10] == 'det' and prep:
@@ -121,8 +123,10 @@ class Action():
             if len(apparatus) == 0:
                 apparatus.append('') #Implicit argument
             if len(intermeds) == 0:
-                intermeds.append('') #Implicit argument. #TODO Has to be removed for the first operation.
-
+                # TODO Has to be removed for the first operation.
+                intermeds.append('') #Implicit argument.
+            # Why are all text spans marked as DOBJ? Shouldn't this information
+            # come from a dependency parse?
             self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=constants.LEAF_INDEX))
             self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=constants.LEAF_INDEX))
             self.ARGs.append(Argument(intermeds, 'DOBJ', 'intrmed'))

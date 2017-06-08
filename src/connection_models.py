@@ -8,7 +8,7 @@ import numpy as np
 import nltk
 import pickle
 from collections import Counter, defaultdict
-import pprint
+import pprint, sys, decimal
 from sklearn.naive_bayes import MultinomialNB
 
 import utils
@@ -17,8 +17,14 @@ import constants
 VERBOSE=True
 
 class OpSigModel:
+    """
+    Model defines a distribution over the verb signatures for each op (verb)
+    """
     def __init__(self, prior_w = 0.1):
-        self.reset()
+        self.op_sig_cnts = np.array([0] * 8).astype(float)
+        # The dict with the distributions over the op signatures for each
+        # verb type.
+        self.op_sig_model_dict = dict()
         self.prior_w = prior_w
         pass
 
@@ -34,7 +40,11 @@ class OpSigModel:
         self.op_sig_cnts = np.array([0] * 8).astype(float)
         self.op_sig_model_dict = dict()
 
-    def get_idx_from_opSig(self, sig_set, is_leaf):
+    def _get_opSig_idx(self, sig_set, is_leaf):
+        # Create a binary number as a string to find the verb signature
+        # of an action given its sig_set and if its a leaf. This is pretty
+        # clever! :D Using strings and then just making them an
+        # int in the end. (DOBJ,PP,is_leaf)
         s = ''
         if 'DOBJ' in sig_set:
             s = s + '1'
@@ -54,17 +64,21 @@ class OpSigModel:
 
     def get_opSig_idx(self, action):
         # is_leaf = True # set outside
+        # I think is_leaf is set elsewhere.
         is_leaf = action.is_leaf
 
         sig_set = set()
-        # get op sig
+        # You only need to look at the args of the action for the 'type' of
+        # the op signature for the op because all connections in the dest
+        # subset converge on these args and that's what we care about.
         for arg in action.ARGs:
             if arg.sem_type == 'material':
                 sig_set = sig_set.union([arg.syn_type])
 
-        return self.get_idx_from_opSig(sig_set, is_leaf)
+        return self._get_opSig_idx(sig_set, is_leaf)
 
     def get_opSig_from_idx(self, idx):
+        # Get a binary representation of idx as a string.
         bit_str = format(idx, '03b')
         assert len(bit_str) is 3
 
@@ -81,12 +95,9 @@ class OpSigModel:
 
         return sig_set, is_leaf
 
-
-
     def norm_cnt(self, cnt):
         # make sure it's cnt not prob
-
-        res = float(1) / len(cnt)  #
+        res = float(1) / len(cnt)
         cnt[cnt == 0] = res
 
         s = sum(cnt)
@@ -96,45 +107,65 @@ class OpSigModel:
             return prob
 
     def M_step(self, actionGraphs):
+        """
+        Update parameters of model using current set of connections.
+        :param actionGraphs:
+        :return:
+        """
         self.reset()
 
+        # Form counts of op signatures for each op.
         for AG in actionGraphs:
             for action in AG.actions:
                 op = action.op
                 idx = self.get_opSig_idx(action)
-                self.op_sig_cnts[idx] = self.op_sig_cnts[idx] + 1
+                # Looks like setting up for some kind of
+                # smoothing to me but I'm not sure of this yet.
+                # This might be some kind of global prior on the distribution
+                # for each verb. Thats what hschang said.
+                self.op_sig_cnts[idx] += 1
 
-                if op not in self.op_sig_model_dict.keys():
-                    self.op_sig_model_dict[op] =  np.array([0] * 8).astype(float)
+                # If op not in model dict add it.
+                if op not in self.op_sig_model_dict:
+                    self.op_sig_model_dict[op] = np.array([0] * 8).astype(float)
+                # Increment the count for the verb signature for the op.
                 self.op_sig_model_dict[op][idx] += 1
 
         # normalize probs
         self.op_sig_cnts = self.norm_cnt(self.op_sig_cnts)
-        for k in self.op_sig_model_dict.keys():
-            op_s_cnt = np.copy(self.op_sig_model_dict[k])
+        for op in self.op_sig_model_dict.keys():
+            # Copy so you aren't touching the original array.
+            op_s_cnt = np.copy(self.op_sig_model_dict[op])
+            # This is where that global prior is getting added but im
+            # not sure of this.
             op_s_cnt = op_s_cnt + len(self.op_sig_cnts) * self.op_sig_cnts
-            self.op_sig_model_dict[k] = self.norm_cnt(op_s_cnt)
+            self.op_sig_model_dict[op] = self.norm_cnt(op_s_cnt)
         if VERBOSE:
             print 'Opsig model: ', pprint.pprint(self.op_sig_model_dict)
 
 
     def evaluate(self, actionGraph):
+        """
+        Evaluate probability of current action graph under the existing model.
+        :param actionGraph:
+        :return:
+        """
         log_prob = np.log(1)
         for action in actionGraph.actions:
             op = action.op
             vb_idx = self.get_opSig_idx(action)
-            if op in self.op_sig_model_dict.keys():
-                log_prob = log_prob + self.prior_w * np.log(self.op_sig_cnts[vb_idx])
-                log_prob = log_prob + np.log(self.op_sig_model_dict[op][vb_idx])
+            if op in self.op_sig_model_dict:
+                # I guess this is okay but why exactly multiply with that
+                # prior_w here?
+                log_prob += np.log(self.op_sig_model_dict[op][vb_idx]) + \
+                            self.prior_w * np.log(self.op_sig_cnts[vb_idx])
             else:
-                log_prob = log_prob + np.log(self.op_sig_cnts[vb_idx])
+                # Why not multiply with the prior here too?
+                log_prob += np.log(self.op_sig_cnts[vb_idx])
         return log_prob
 
-
-
-
-
-
+# Shouldn't this be similar to the part-composite model in its form?
+# Why is this a distribution over raw/not_raw?
 class RawMaterialModel:
     def __init__(self, leaf_idx):
         self.reset()
@@ -174,7 +205,7 @@ class RawMaterialModel:
 
         self.model['raw'] = Counter(str_data_dict['raw'])
         self.model['not_raw'] = Counter(str_data_dict['not_raw'])
-        print 'Raw material model: ', self.model
+        print 'Raw material model: ', pprint.pprint(dict(self.model))
 
     def evaluate(self, S):
         prob_span_is_raw = 1
@@ -191,7 +222,9 @@ class RawMaterialModel:
 
 
 
-
+# I think that the general implementation below here is correct but that the
+# interpretation in his comment and the model that this prints might be
+# incorrect.
 class ApparatusModel:
     def __init__(self, leaf_idx):
         self.leaf_idx = leaf_idx
@@ -248,14 +281,22 @@ class ApparatusModel:
         ori_act_i = ss.origin
         assert ori_act_i != self.leaf_idx
         aprts = self.get_all_apparatus(AG.actions[ori_act_i], AG, False)
+        # If there is a string (i.e its not an implicite argument) then its
+        # deterministic and either 1 or 0.
         if ss.s:
             found = utils.substr_match(ss.s, aprts)
             if found:
                 return np.log(1.0)
             else:
+                # Paper says to use 1 or 0 but we cant use a zero because
+                # of using the log? We could, provided all the other code
+                # supported that too. But im not sure yet.
                 return np.log(0.000000001) #TODO: Can we change this?
 
         #TODO: Verify that the math is correct
+        # If there the span is empty (its an implicit argument) then
+        # use the prob that the location arg at the origin verb occuring
+        # with that origin verb.
         else:
             # aprts = self.get_all_apparatus(AG.actions[ori_act_i], AG, False)
             max_val = 0

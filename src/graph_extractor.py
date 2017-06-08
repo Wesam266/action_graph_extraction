@@ -103,7 +103,7 @@ class ActionGraphExtractor:
                         raw_materials.append(ss.s)
                     elif arg.sem_type == constants.INTERMEDIATE_PRODUCT_TAG:
                         prob = self.partCompositeModel.evaluate(act_i, arg_j, ss_k, AG)
-                        pc_prob += pc_prob + prob
+                        pc_prob = pc_prob + prob
 
                     elif arg.sem_type == constants.APPARATUS_TAG:
                         if ss.origin == self.leaf_idx:
