@@ -309,7 +309,7 @@ class PartCompositeModel:
                 for ss in arg.str_spans:
                     all_intrmeds.append(ss.s)
                     if recursive and ss.origin != self.leaf_idx:
-                        all_intrmeds.extend(self.get_all_materials(AG.actions[ss.origin], AG, recursive))
+                        all_intrmeds.extend(self.get_all_intermeds(AG.actions[ss.origin], AG, recursive))
         return all_intrmeds
 
 
