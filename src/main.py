@@ -9,14 +9,12 @@ import graph_extractor
 def main():
     AGE = graph_extractor.ActionGraphExtractor()
     AGE.load_train_file(constants.TRAIN_FILE)
-    AGE.M_step_all()
-    # for AG in AGE.actionGraphs:
-    #     print AG
-    print "======================================================================================================"
-    print AGE.local_search_all()
-    # AGE.M_step_all()
-    # print AGE.local_search_all()
-
+    for i in range(10):
+        AGE.M_step_all()
+        print "======================================================================================================"
+        num_changes = AGE.local_search_all()
+        if num_changes < 2: #
+            break
 
     for AG in AGE.actionGraphs:
         print AG
