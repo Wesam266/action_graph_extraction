@@ -165,8 +165,6 @@ class OpSigModel:
         return log_prob
 
 
-# Shouldn't this be similar to the part-composite model in its form?
-# Why is this a distribution over raw/not_raw?
 class RawMaterialModel:
     def __init__(self, leaf_idx):
         self.reset()
@@ -308,10 +306,12 @@ class ApparatusModel:
             return np.log((alpha*(max_val+1))/(op_sum + alpha*self.val_sum))
 
 
-
-
-
 class PartCompositeModel:
+    """
+    Model assigns a string span a probability when its an intermediate material.
+    Model says what materials are likely to have originated from what other
+    materials.
+    """
     def __init__(self, leaf_idx):
         # I guess there's no reason why a Counter must be used here.
         # You could just use a defaultdict(int). Because I guess we're
@@ -365,8 +365,8 @@ class PartCompositeModel:
                 for arg in action.ARGs:
                     if arg.sem_type is 'intrmed':
                         for ss in arg.str_spans:
-                            # Get all materials from the origin of the current
-                            # string span.
+                            # Get all materials from all the actions with a
+                            # directed path to the current string span.
                             ori_mtrls = self.get_all_materials(
                                 AG.actions[ss.origin], AG, True)
                             mtrls.append(ori_mtrls)
@@ -379,8 +379,10 @@ class PartCompositeModel:
                             self.model[each_interm][ori_mat] += 1
                         else:
                             self.model['IMPLCT_ARG'][ori_mat] += 1
-        # Not sure what this val_sum is. This can be found here since
-        # otherwise it gets called multiple times un-necessarily in the
+
+        # Using this to smooth the conditional distr in the evaluate
+        # function below. This can be computed here since otherwise
+        # it gets computed multiple times un-necessarily in the
         # evaluate function.
         self.val_sum = 0
         for intermed in self.model.keys():
@@ -403,17 +405,26 @@ class PartCompositeModel:
         ori_act_i = ss.origin
         # print action_i, arg_j, ss_k, ss.origin
         # print ss.s
-        assert ori_act_i != self.leaf_idx
-        # Since mtrls is a list of lists with as many sublists as number of
-        # string spans in the current argument, index into it with ss_k
-        mtrls = self.get_all_materials(AG.actions[action_i], AG, False)[ss_k]
+        # assert ori_act_i != self.leaf_idx
+
+        # Get materials from all prior actions with a directed path to ss
+        span_mtrls = self.get_all_materials(AG.actions[ss.origin], AG, True)
         cnt = 0
-        for m in mtrls:
+        for m in span_mtrls:
             if ss.s:
                 cnt += self.model[ss.s][m]
             else:
-                cnt += self.model['IMPLCT_ARG'][m] #could be incorrect
-        alpha = 1.0
+                cnt += self.model['IMPLCT_ARG'][m] #skc: could be incorrect
 
-        # Not sure whats happening here.
-        return np.log((alpha*(cnt+1))/(sum(self.model[ss.s].values()) + alpha*self.val_sum))
+        # Conditional prob part; present given previous; Laplace smoothed.
+        alpha = 0.1
+        cp = (cnt + alpha)/(sum(self.model[ss.s].values()) + alpha*self.val_sum)
+
+        # Uniform prob factor. 1/[1+(number of spans in current action)]
+        # This is slightly incorrect for now, since you want the number
+        # of source string span groups here. But idk how to get that.
+        up = 1.0/(len(AG.actions[action_i].ARGs[arg_j].str_spans)+1)
+        # Spans contribution to entire prob.
+        res = np.log(up) + np.log(cp)
+
+        return res
