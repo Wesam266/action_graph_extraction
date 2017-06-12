@@ -164,6 +164,7 @@ class OpSigModel:
                 log_prob += np.log(self.op_sig_cnts[vb_idx])
         return log_prob
 
+
 # Shouldn't this be similar to the part-composite model in its form?
 # Why is this a distribution over raw/not_raw?
 class RawMaterialModel:
@@ -217,9 +218,6 @@ class RawMaterialModel:
             return np.log(prob_span_is_raw)
         else:
             return np.log(0.000000001)
-
-
-
 
 
 # I think that the general implementation below here is correct but that the
@@ -315,7 +313,10 @@ class ApparatusModel:
 
 class PartCompositeModel:
     def __init__(self, leaf_idx):
-        self.reset()
+        # I guess there's no reason why a Counter must be used here.
+        # You could just use a defaultdict(int). Because I guess we're
+        # not really using the Counters abilities.
+        self.model = defaultdict(Counter)
         self.leaf_idx = leaf_idx
         pass
 
@@ -331,7 +332,6 @@ class PartCompositeModel:
             self.model = pickle.load(f)
 
 
-
     def get_all_materials(self, action, AG, recursive):
         all_materials = []
 
@@ -344,14 +344,12 @@ class PartCompositeModel:
 
         return all_materials
 
-    def get_all_intermeds(self, action, AG, recursive):
+    def get_action_intermeds(self, action):
         all_intrmeds = []
         for arg in action.ARGs:
             if arg.sem_type == 'intrmed':
                 for ss in arg.str_spans:
                     all_intrmeds.append(ss.s)
-                    if recursive and ss.origin != self.leaf_idx:
-                        all_intrmeds.extend(self.get_all_materials(AG.actions[ss.origin], AG, recursive))
         return all_intrmeds
 
 
@@ -359,34 +357,56 @@ class PartCompositeModel:
         self.reset()
         for AG in actionGraphs:
             for action in AG.actions:
-
-                op = action.op
-                mtrls = self.get_all_materials(action, AG, False) #has to be changed to true
-                intrmed_prods = self.get_all_intermeds(action, AG, False)
-
-                for i in intrmed_prods:
-                    for m in mtrls:
-                        if i:
-                            self.model[i][m] += 1
+                intrmed_prods = self.get_action_intermeds(action)
+                # mtrls now is a list of lists with each sublist consisting
+                # of materials from all previous actions which have a directed
+                # path to the current string span.
+                mtrls = list()
+                for arg in action.ARGs:
+                    if arg.sem_type is 'intrmed':
+                        for ss in arg.str_spans:
+                            # Get all materials from the origin of the current
+                            # string span.
+                            ori_mtrls = self.get_all_materials(
+                                AG.actions[ss.origin], AG, True)
+                            mtrls.append(ori_mtrls)
+                # Ideally the length of intermed_prods and mtrls should
+                # be the same.
+                assert len(intrmed_prods) == len(mtrls)
+                for each_interm, each_ori_mats in zip(intrmed_prods, mtrls):
+                    for ori_mat in each_ori_mats:
+                        if each_interm:
+                            self.model[each_interm][ori_mat] += 1
                         else:
-                            self.model['IMPLCT_ARG'][m] += 1
+                            self.model['IMPLCT_ARG'][ori_mat] += 1
+        # Not sure what this val_sum is. This can be found here since
+        # otherwise it gets called multiple times un-necessarily in the
+        # evaluate function.
         self.val_sum = 0
-        for i in self.model.keys():
-            self.val_sum += len(self.model[i].values())
+        for intermed in self.model.keys():
+            self.val_sum += len(self.model[intermed].values())
 
         if VERBOSE:
             print 'Part Composite model: ', pprint.pprint(dict(self.model))
 
 
     def evaluate(self, action_i, arg_j, ss_k, AG):
-        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'intrmed', "ERROR: Not Intermediate product"
+        """
+        I think this evaluates one probability term in the ibm-model-1 based
+        on the counts formed in the M_step.
+        One t(f_i|e_{a_i}) term. So for a prob over all string spans this
+        needs to get called m (number of string spans in the arg) times.
+        """
+        assert AG.actions[action_i].ARGs[arg_j].sem_type == 'intrmed',\
+            "ERROR: Not Intermediate product"
         ss = AG.actions[action_i].ARGs[arg_j].str_spans[ss_k]
-        op = AG.actions[action_i].op
         ori_act_i = ss.origin
         # print action_i, arg_j, ss_k, ss.origin
         # print ss.s
         assert ori_act_i != self.leaf_idx
-        mtrls = self.get_all_materials(AG.actions[action_i], AG, False)
+        # Since mtrls is a list of lists with as many sublists as number of
+        # string spans in the current argument, index into it with ss_k
+        mtrls = self.get_all_materials(AG.actions[action_i], AG, False)[ss_k]
         cnt = 0
         for m in mtrls:
             if ss.s:
@@ -395,4 +415,5 @@ class PartCompositeModel:
                 cnt += self.model['IMPLCT_ARG'][m] #could be incorrect
         alpha = 1.0
 
+        # Not sure whats happening here.
         return np.log((alpha*(cnt+1))/(sum(self.model[ss.s].values()) + alpha*self.val_sum))
