@@ -252,7 +252,10 @@ class ActionGraph():
             if i > constants.LEAF_INDEX+1:
                 c = 0
                 for arg in act.ARGs:
-                    if  arg.sem_type == 'intrmed':
+                    # Connect apparatus or intermediate to previous action.
+                    # Im changing this but idk if something else will break
+                    # because of this.
+                    if arg.sem_type in ['intrmed', 'apparatus']:
                         for ss in arg.str_spans:
                             ss.set_origin(i-1)
 

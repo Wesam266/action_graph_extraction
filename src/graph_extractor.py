@@ -106,13 +106,17 @@ class ActionGraphExtractor:
                         pc_prob = pc_prob + prob
 
                     elif arg.sem_type == constants.APPARATUS_TAG:
+                        # I think that if its the leaf index then let it stay.
+                        # because now that the apparatus is also seq_inited
+                        # only the first one has this case and there's no place
+                        # but -1 that it can connect to.
                         if ss.origin == self.leaf_idx:
                             # TODO: decide what to do
                             # log_prob_c = log_prob_c
                             pass
                         else:
                             prob = self.apparatusModel.evaluate(act_i, arg_j, ss_k, AG)
-                            app_prob = app_prob + prob
+                            app_prob += prob
                     log_prob = log_prob + app_prob + np.log(ibm_model_epsilon) \
                                 - num_intrmeds * np.log(num_materials+1) + pc_prob
 

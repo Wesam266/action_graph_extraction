@@ -1,20 +1,25 @@
 # -*- coding: utf-8 -*-
 '''
-Code adapted from
+This file contains the linguistically motivated models for what a recipe
+should look like; as described in:
+"Mise en Place : Unsupervised Interpretation of Instructional Recipes"
 
+Implementation based on the implementations for the paper:
+"Unsupervised Visual-Linguistic Reference Resolution in Instructional Videos"
+by De-An Huang.
 '''
 
 import numpy as np
-import nltk
-import pickle
+import sys, os
+import pickle, pprint, decimal
 from collections import Counter, defaultdict
-import pprint, sys, decimal
-from sklearn.naive_bayes import MultinomialNB
 
+# My imports.
 import utils
 import constants
 
-VERBOSE=True
+# Print out current models in each M_step.
+VERBOSE = True
 
 class OpSigModel:
     """
@@ -167,7 +172,7 @@ class OpSigModel:
 
 class RawMaterialModel:
     def __init__(self, leaf_idx):
-        self.reset()
+        self.model = {'not_raw': Counter(), 'raw': Counter()}
         self.leaf_idx = leaf_idx
         self.label_map = ['not_raw', 'raw']
 
@@ -193,43 +198,62 @@ class RawMaterialModel:
         for AG in actionGraphs:
             for action in AG.actions:
                 for arg in action.ARGs:
-                    if arg.sem_type == 'material':
+                    if arg.sem_type == constants.MATERIAL_TAG:
                         for ss in arg.str_spans:
                             # if ss.origin == self.leaf_idx:
-                            str_data_dict['raw'].append(ss.s)
+                            # Split on white space and count because its a
+                            # naive bayes model over the toks in the ss.
+                            str_data_dict['raw'].extend(ss.s.split())
                             # else:
                     elif arg.sem_type == constants.INTERMEDIATE_PRODUCT_TAG:
                         for ss in arg.str_spans:
-                            str_data_dict['not_raw'].append(ss.s)
+                            str_data_dict['not_raw'].extend(ss.s.split())
 
         self.model['raw'] = Counter(str_data_dict['raw'])
         self.model['not_raw'] = Counter(str_data_dict['not_raw'])
-        print 'Raw material model: ', pprint.pprint(dict(self.model))
 
-    def evaluate(self, S):
-        prob_span_is_raw = 1
-        for s in S:
-            prob_span_is_raw = prob_span_is_raw * (self.model['raw'][s]/len(self.model['raw'].keys()))
-                                                  # Count of string s seen as 'raw'/total 'raw' words seen
+        if VERBOSE:
+            print 'Raw material model: ', pprint.pprint(dict(self.model))
 
-        if prob_span_is_raw > 0:
-            return np.log(prob_span_is_raw)
-        else:
-            return np.log(0.000000001)
+    def evaluate(self, AG_raw_spans):
+        """
+        Evaluate the probability of the string spans input here being raw under
+        the model.
+        :param AG_raw_spans: A list of raw material string spans from the whole
+            action graph.
+        :return:
+        """
+        log_prob_span_is_raw = 0
+        alpha = 0.1
+        for str_span in AG_raw_spans:
+            # Split on white space and find and multiply prob for each
+            # token because its a naive bayes model over the toks in the ss.
+            for str in str_span.split():
+                # Count of string s seen as 'raw'/total of all 'raw'
+                # word counts. Also laplace smoothed so that no value is zero.
+                log_prob_span_is_raw += np.log((self.model['raw'][str]+alpha) /
+                                        (sum(self.model['raw'].values())
+                                        + alpha * len(self.model['raw'])))
+        return log_prob_span_is_raw
 
 
-# I think that the general implementation below here is correct but that the
-# interpretation in his comment and the model that this prints might be
-# incorrect.
 class ApparatusModel:
+    """
+    Models how likely it is that an action v_i occurs in the location
+    corresponding to a origin verb P(loc(origin(s_{ij}^k,C))| v_i)
+    If there is a string match between the present operations location and the
+    previous verbs location assign a super high probability of 1. Else assign
+    zero. If the present location is an implicit argument then use counts of
+    how likely the present verb is likely to occur in the origin actions
+    location argument. Both the string match and this probability are actually
+    the same thing conceptually. But idk how this would sum to one.
+    """
     def __init__(self, leaf_idx):
         self.leaf_idx = leaf_idx
-        self.reset()
+        self.model = defaultdict(Counter)
 
     def reset(self):
         self.model = defaultdict(Counter)
-        # models how likely it is that an action v_i occurs in the location corresponding to a origin verb
-        # P(loc(origin(s_{ij}^k,C))| v_i)
 
     def save(self, fname):
         with open(fname, 'w') as f:
@@ -239,71 +263,88 @@ class ApparatusModel:
         with open(fname, 'r') as f:
             self.model = pickle.load(f)
 
-    def get_all_apparatus(self, action, AG, recursive):
+    def get_all_apparatus(self, action, AG):
         aprts = []
         for arg in action.ARGs:
-            if arg.sem_type == 'apparatus':
+            if arg.sem_type == constants.APPARATUS_TAG:
                 for ss in arg.str_spans:
                     if ss.s:
                         aprts.append(ss.s)
-                    elif recursive and ss.origin is not None and ss.origin != self.leaf_idx:
-                        aprts.extend(self.get_all_apparatus(AG.actions[ss.origin], AG, recursive))
-
+                    # elif recursive and (ss.origin is not None) and \
+                    #         (ss.origin != self.leaf_idx):
+                    #     aprts.extend(self.get_all_apparatus(AG.actions[ss.origin], AG, recursive))
         return aprts
 
     def M_step(self, actionGraphs):
         self.reset()
-
-        for AG in actionGraphs:
+        for i, AG in enumerate(actionGraphs):
             for action in AG.actions:
                 op = action.op
-                aprts = self.get_all_apparatus(action, AG, False)
-                for a in aprts:
-                    self.model[op][a] += 1
+                aprts = list()
+                for arg in action.ARGs:
+                    # You'd only use this model when there wasn't a
+                    # deterministic match to the previous actions apparatus
+                    # so i have some doubts about this.
+                    if arg.sem_type == constants.APPARATUS_TAG:
+                        for ss in arg.str_spans:
+                            # Ensure that you're not trying to form counts
+                            # for the first action by looking at the previous.
+                            # (Because there is no previous :P)
+                            if ss.origin != self.leaf_idx:
+                                # Get one previous apparatus. Looking beyond one
+                                # previous doesn't make sense because why should
+                                # it matter what was used in all previous
+                                # actions.
+                                aprts.extend(self.get_all_apparatus(AG.actions[ss.origin], AG))
+                        for a in aprts:
+                            self.model[op][a] += 1
+
+        # Using this to smooth the conditional distr in the evaluate
+        # function below. Better computed here since otherwise
+        # it gets computed multiple times un-necessarily in the
+        # evaluate function.
         self.val_sum = 0
-        for i in self.model.keys():
-            self.val_sum += len(self.model[i].values())
+        for operation in self.model.keys():
+            self.val_sum += len(self.model[operation])
+
         if VERBOSE:
             print 'Apparatus Model: ', pprint.pprint(dict(self.model))
 
 
-
-
     def evaluate(self, action_i, arg_j, ss_k, AG):
-
+        """
+        Assign a probability to a location string span based on how likely the
+        present operation is to occur at the origins location.
+        """
         assert AG.actions[action_i].ARGs[arg_j].sem_type == 'apparatus', "ERROR: Not Apparatus"
         ss = AG.actions[action_i].ARGs[arg_j].str_spans[ss_k]
         op = AG.actions[action_i].op
         ori_act_i = ss.origin
         assert ori_act_i != self.leaf_idx
-        aprts = self.get_all_apparatus(AG.actions[ori_act_i], AG, False)
-        # If there is a string (i.e its not an implicite argument) then its
-        # deterministic and either 1 or 0.
+        aprts = self.get_all_apparatus(AG.actions[ori_act_i], AG)
+        # If there is a string (i.e its not an implicite argument) then return
+        # prob 1 if theres a string match to the previous actions location
+        # and very low probability otherwise.
         if ss.s:
             found = utils.substr_match(ss.s, aprts)
             if found:
                 return np.log(1.0)
             else:
-                # Paper says to use 1 or 0 but we cant use a zero because
-                # of using the log? We could, provided all the other code
-                # supported that too. But im not sure yet.
-                return np.log(0.000000001) #TODO: Can we change this?
+                return np.log(0.000000001)
 
-        #TODO: Verify that the math is correct
-        # If there the span is empty (its an implicit argument) then
-        # use the prob that the location arg at the origin verb occuring
-        # with that origin verb.
+        # If the span is empty (its an implicit argument) then
+        # use the prob that the location arg(s) at the origin verb occurrs
+        # with the verb for the present action. Since the origin can have
+        # multiple locations pick the one with the largest probability.
         else:
-            # aprts = self.get_all_apparatus(AG.actions[ori_act_i], AG, False)
             max_val = 0
-            max_aprts = ''
             for a in aprts:
                 if self.model[op][a] > max_val:
                     max_val = self.model[op][a]
-                    max_aprts = a
             op_sum = sum(self.model[op].values())
-            alpha = 1.0
-            return np.log((alpha*(max_val+1))/(op_sum + alpha*self.val_sum))
+            # Return a laplace smoothed log prob.
+            alpha = 0.1
+            return np.log((max_val+alpha)/(op_sum + alpha*self.val_sum))
 
 
 class PartCompositeModel:
@@ -381,7 +422,7 @@ class PartCompositeModel:
                             self.model['IMPLCT_ARG'][ori_mat] += 1
 
         # Using this to smooth the conditional distr in the evaluate
-        # function below. This can be computed here since otherwise
+        # function below. Better computed here since otherwise
         # it gets computed multiple times un-necessarily in the
         # evaluate function.
         self.val_sum = 0
@@ -405,7 +446,7 @@ class PartCompositeModel:
         ori_act_i = ss.origin
         # print action_i, arg_j, ss_k, ss.origin
         # print ss.s
-        # assert ori_act_i != self.leaf_idx
+        assert ori_act_i != self.leaf_idx
 
         # Get materials from all prior actions with a directed path to ss
         span_mtrls = self.get_all_materials(AG.actions[ss.origin], AG, True)
