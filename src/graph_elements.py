@@ -1,9 +1,6 @@
-import numpy as np
-import nltk
-import re
+import sys
+import pprint
 import constants
-from connection_models import OpSigModel
-
 
 
 class StringSpan:
@@ -13,9 +10,6 @@ class StringSpan:
 
     def set_origin(self,i):
         self.origin = i
-
-    # def get_str(self):
-    #     return self.s
 
     def __str__(self):
         s = self.s
@@ -36,15 +30,24 @@ class Argument:
         # strs = filter(None, text) #To remove empty string spans
         for s in text:
             self.str_spans.append(StringSpan(s))
-            self.str_spans[-1].set_origin(origin)
+            self.str_spans[-1].set_origin(origin)  # Clever.
 
     # def get_str_in_span(self, k):
     #     return self.str_spans[k].get_str()
 
+    # Not sure why this is there. Whats the index associated with an argument?.
     def set_idx(self, j):
         self.idx = j
+
     def set_sem_type(self, sem_type):
         self.sem_type = sem_type
+
+    def get_str(self):
+        s = ''
+        s = s + self.prep
+        for ss in self.str_spans:
+            s = s + ' ' + ss.s
+        return s.strip()
 
     def __str__(self):
         s = '[' + self.syn_type + ', ' + self.sem_type + '] '
@@ -54,22 +57,16 @@ class Argument:
             s = s + sp.__str__() + ' , '
         return s
 
-    def get_str(self):
-        s = ''
-        s = s + self.prep
-        for ss in self.str_spans:
-            s = s + ' ' + ss.s
-        return s.strip()
-
     def __repr__(self):
         return self.__str__()
 
 
-
-
-
-class Action():
+class Action:
     def __init__(self, sentence_annotated):
+        """
+
+        :param sentence_annotated: A list of lists. Each sublist is one token.
+        """
         self.ARGs = []
         self.is_leaf = False
         self.op = ''
@@ -77,45 +74,40 @@ class Action():
         materials = []
         apparatus = []
         intermeds = []
-        # These pos tags don't seem to be used anywhere. Why are they being
-        # used then?
         material_pos_tags = []
         apparatus_pos_tags = []
         text = ''
-        # Is this the prepositional phrase? "Every action
-        # is assigned an implicite PP" from the paper?
         prep = ''
-        for annotation in sentence_annotated:
-            text = text + ' ' + annotation[0]
-            # print annotation
-            if annotation[1] == 'B-operation':
-                self.op = annotation[0]
-            elif annotation[1] == 'I-operation':
-                self.op = self.op + ' ' + annotation[0]
-            elif annotation[1] == 'B-material':
-                materials.append(annotation[0])
-                material_pos_tags.append(annotation[6])
-            elif annotation[1] == 'I-material':
-                materials[-1] = materials[-1] + ' ' + annotation[0]
-            elif annotation[1] == 'B-synth_aprt':
-                apparatus.append(annotation[0])
-                apparatus_pos_tags.append(annotation[6])
-            elif annotation[1] == 'I-synth_aprt':
-                apparatus[-1] = apparatus[-1] + ' ' + annotation[0]
-            elif annotation[1] == 'B-intrmed':
-                intermeds.append(annotation[0])
-            elif annotation[1] == 'I-intrmed':
-                intermeds[-1] = intermeds[-1] + ' ' + annotation[0]
-            # The prepositional phrases are all ignored for now. I confirmed
-            # this with SKC. This needs to be implemented.
-            # elif annotation[10] == 'case':
-            #     prep += annotation[0]
-            # elif annotation[10] == 'det' and prep:
-            #     prep += annotation[0]
+        for tok_annotation in sentence_annotated:
+            text = text + ' ' + tok_annotation[0]
+            if tok_annotation[1] == 'B-operation':
+                self.op = tok_annotation[0]
+            elif tok_annotation[1] == 'I-operation':
+                self.op = self.op + ' ' + tok_annotation[0]
+            elif tok_annotation[1] == 'B-material':
+                materials.append(tok_annotation[0])
+                material_pos_tags.append(tok_annotation[6])
+            elif tok_annotation[1] == 'I-material':
+                materials[-1] = materials[-1] + ' ' + tok_annotation[0]
+            elif tok_annotation[1] == 'B-synth_aprt':
+                apparatus.append(tok_annotation[0])
+                apparatus_pos_tags.append(tok_annotation[6])
+            elif tok_annotation[1] == 'I-synth_aprt':
+                apparatus[-1] = apparatus[-1] + ' ' + tok_annotation[0]
+            elif tok_annotation[1] == 'B-intrmed':
+                intermeds.append(tok_annotation[0])
+            elif tok_annotation[1] == 'I-intrmed':
+                intermeds[-1] = intermeds[-1] + ' ' + tok_annotation[0]
+            # The prepositional phrases are all ignored for now.
+            # elif tok_annotation[10] == 'case':
+            #     prep += tok_annotation[0]
+            # elif tok_annotation[10] == 'det' and prep:
+            #     prep += tok_annotation[0]
             # print prep
             # prep = ''
 
-
+        # TODO: Get rid of this if statement and the ommited thing because
+        # you dont really need it. --low priority.
         if self.op:
             # print self.op
             # if len(materials) == 0:
@@ -125,18 +117,13 @@ class Action():
             if len(intermeds) == 0:
                 # TODO Has to be removed for the first operation.
                 intermeds.append('') #Implicit argument.
-            # Why are all text spans marked as DOBJ? Shouldn't this information
-            # come from a dependency parse?
+            # Information about DOBJ or PP needs to come from a
+            # dependency parse.
             self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=constants.LEAF_INDEX))
             self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=constants.LEAF_INDEX))
             self.ARGs.append(Argument(intermeds, 'DOBJ', 'intrmed'))
-
-
         else:
             self.omitted.append(text)
-
-
-
 
     def set_isLeaf(self):
         self.is_leaf = True
@@ -144,24 +131,27 @@ class Action():
     def update_isLeaf(self):
         is_leaf = True
         for arg in self.ARGs:
-            if arg.sem_type != 'intrmed': #Intermed cannot be a leaf
+            # If not an intermediate then check spans for their origins.
+            if arg.sem_type != 'intrmed':
+                # A single non leaf origin span makes is_leaf = False.
                 if not is_leaf:
                     break
                 for s in arg.str_spans:
-                    if s.origin is not constants.LEAF_INDEX:
+                    if s.origin != constants.LEAF_INDEX:
                         is_leaf = False
                         break
+            # If the arg is a intermediate set is_leaf to False.
+            else:
+                is_leaf = False
         self.is_leaf = is_leaf
 
-
+    # Not sure why this is there. Whats the index associated with an action?.
     def set_idx(self, i):
         self.idx = i
-
 
     def set_arg_indices(self):
         for j in range(len(self.ARGs)):
             self.ARGs[j].set_idx(j)
-
 
     # def get_span_in_arg(self, j, k):
     #     return self.ARGs[j].get_str_in_span(k)
@@ -181,28 +171,33 @@ class Action():
 
 
 class ActionGraph():
-    def __init__(self, recipes_annotated):
+    def __init__(self, recipe_annotated):
+        """
+
+        :param recipe_annotated: A list of lists with each sublist being an
+            annotated token. Sublist with one '' element delimits sentences.
+        """
         self.actions = []
         sentence = []
         sentence_ann = []
-        for annotation in recipes_annotated:
-            if annotation[0] == '' and len(annotation) == 1:
+        for tok_annotation in recipe_annotated:
+            # If you get to the end of a sentence initialize an action.
+            if tok_annotation[0] == '' and len(tok_annotation) == 1:
                 # Only add the sentence as an action if it has a op in it.
                 if ('B-operation' in sentence_ann) or \
                     ('I-operation' in sentence_ann):
                     self.actions.append(Action(sentence))
                     sentence = []
                 sentence_ann = []
+            # Keep appending till you get to the end of a sentence.
             else:
-                sentence.append(annotation)
-                sentence_ann.append(annotation[1])
+                sentence.append(tok_annotation)
+                sentence_ann.append(tok_annotation[1])
 
         for i, act in enumerate(self.actions):
             act.set_idx(i)
 
         self.seq_init()
-
-
 
     def set_action_indices(self):
         for i in range(len(self.actions)):
@@ -234,7 +229,6 @@ class ActionGraph():
                     count+=1
         return count
 
-
     def get_apparatus_len(self):
         count=0
         for action in self.actions:
@@ -245,16 +239,17 @@ class ActionGraph():
 
     def seq_init(self):
         self.actions[0].set_isLeaf()
+        # This removing intermediate looks like a hack.
         for i, arg in enumerate(self.actions[0].ARGs):
             if arg.sem_type == 'intrmed':
                 self.actions[0].rm_arg(i)
         for i, act in enumerate(self.actions):
+            # If not the first action
             if i > constants.LEAF_INDEX+1:
-                c = 0
                 for arg in act.ARGs:
                     # Connect apparatus or intermediate to previous action.
-                    # Im changing this but idk if something else will break
-                    # because of this.
+                    # TODO: Look into whether setting apparatus sequentially
+                    # does anything bad.
                     if arg.sem_type in ['intrmed', 'apparatus']:
                         for ss in arg.str_spans:
                             ss.set_origin(i-1)
@@ -264,7 +259,6 @@ class ActionGraph():
         for act in self.actions:
             graph += act.__str__() + '\n'
         return graph
-
 
 
 def test():
