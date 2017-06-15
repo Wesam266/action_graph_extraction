@@ -67,23 +67,26 @@ class Action:
 
         :param sentence_annotated: A list of lists. Each sublist is one token.
         """
-        self.ARGs = []
+        self.ARGs = list()
         self.is_leaf = False
         self.op = ''
-        self.omitted = []
-        materials = []
-        apparatus = []
-        intermeds = []
-        material_pos_tags = []
-        apparatus_pos_tags = []
+        self.omitted = list()
+        materials = list()
+        apparatus = list()
+        intermeds = list()
+        material_pos_tags = list()
+        apparatus_pos_tags = list()
         text = ''
         prep = ''
+        temp_ops = list()
         for tok_annotation in sentence_annotated:
             text = text + ' ' + tok_annotation[0]
+            # Don't assume that theres a single operation. Read them all in
+            # and then pick.
             if tok_annotation[1] == 'B-operation':
-                self.op = tok_annotation[0]
+                temp_ops.append(tok_annotation[0])
             elif tok_annotation[1] == 'I-operation':
-                self.op = self.op + ' ' + tok_annotation[0]
+                temp_ops[-1] = temp_ops[-1] + ' ' + tok_annotation[0]
             elif tok_annotation[1] == 'B-material':
                 materials.append(tok_annotation[0])
                 material_pos_tags.append(tok_annotation[6])
@@ -106,6 +109,8 @@ class Action:
             # print prep
             # prep = ''
 
+        # Pick the first op among multiple ops
+        self.op = temp_ops[0]
         # TODO: Get rid of this if statement and the ommited thing because
         # you dont really need it. --low priority.
         if self.op:
@@ -161,7 +166,7 @@ class Action:
         del self.ARGs[i]
 
     def __str__(self):
-        s = 'Operation: ' + self.op + '\n'
+        s = 'Action {:d}: '.format(self.idx) + ' Operation: {}'.format(self.op) + '\n'
         for arg in self.ARGs:
             s = s + arg.__str__() + '\n'
         return s
@@ -187,7 +192,8 @@ class ActionGraph():
                 if ('B-operation' in sentence_ann) or \
                     ('I-operation' in sentence_ann):
                     self.actions.append(Action(sentence))
-                    sentence = []
+                # Empty the sentence tokens and annotations irrespective!
+                sentence = []
                 sentence_ann = []
             # Keep appending till you get to the end of a sentence.
             else:

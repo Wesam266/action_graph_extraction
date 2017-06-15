@@ -1,14 +1,12 @@
 import numpy as np
 import cPickle as pickle
-import os
+import os, sys
 import logging
 
-
+# My imports.
 import connection_models
 import graph_elements
 import constants
-
-
 
 
 class ActionGraphExtractor:
@@ -58,7 +56,7 @@ class ActionGraphExtractor:
             if split[0] != '' and len(split) != 1:
                 # If the next recipe is beginning then make a AG
                 # with the actions (sentences) you have so far.
-                if split[2] == '0' and next_rec_begin == True:
+                if split[2] == '0' and next_rec_begin is True:
                     self.actionGraphs.append(graph_elements.ActionGraph(annot))
                     recipe_count += 1
                     annot = []
@@ -140,7 +138,7 @@ class ActionGraphExtractor:
         # if there is material then it is material
         # elif there is apparatus => apparatus
         # TODO: see example that is neither
-        #TODO: see if material can be referred to without making it intermed
+        # TODO: see if material can be referred to without making it intermed
         if 'material' in sem_type_set:
             ori_sem_type = 'intrmed'
         elif 'apparatus' in sem_type_set:

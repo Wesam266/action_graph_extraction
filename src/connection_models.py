@@ -19,7 +19,7 @@ import utils
 import constants
 
 # Print out current models in each M_step.
-VERBOSE = True
+VERBOSE = False
 
 class OpSigModel:
     """
