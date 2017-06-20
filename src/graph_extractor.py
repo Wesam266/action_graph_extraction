@@ -148,9 +148,8 @@ class ActionGraphExtractor:
 
         return ori_sem_type
 
-
+    # AG, prev_si, cur_si
     def OP_2SWAP(self, AG, s1_idx, s2_idx):
-
         ss1 = AG.get_str_span(s1_idx)
         ss2 = AG.get_str_span(s2_idx)
 
@@ -160,18 +159,27 @@ class ActionGraphExtractor:
         act1_i, arg1_j, ss1_k = s1_idx
         act2_i, arg2_j, ss2_k = s2_idx
 
+        ss1_sem_type = AG.actions[act1_i].ARGs[arg1_j].sem_type
+        ss2_sem_type = AG.actions[act2_i].ARGs[arg2_j].sem_type
+
         # print ori1_i, ori2_i
         # print act1_i, act2_i
+
+        # same origin, no need to swap
         if ori1_i == ori2_i:
-            # same origin, no need to swap
             # print "Same origin"
             return False
 
-
-
+        # output to previous act is impossible
         if ori1_i >= act2_i or ori2_i >= act1_i:
-            # output to previous act is impossible
             # print "Origin greater than action"
+            return False
+
+        # Don't swap if swap causes intermediate to link to -1.
+        if ((ss2_sem_type is constants.INTERMEDIATE_PRODUCT_TAG) and
+                (ori1_i == -1)) or \
+            ((ss1_sem_type is constants.INTERMEDIATE_PRODUCT_TAG) and
+                (ori2_i == -1)):
             return False
 
         arg1 = AG.actions[act1_i].ARGs[arg1_j]
@@ -228,19 +236,19 @@ class ActionGraphExtractor:
         #     act1.update_isLeaf()
         #     act2.update_isLeaf()
         #     #TODO -Update implicit argument sem type
-
+        return True
 
     def local_search(self, AG):
         improved = True
-        max_iter = 10
+        max_iter = 1
         iter = 0
         p_AG = self.evaluate_models(AG)
 
         num_changes = 0
 
         while improved and iter < max_iter:
-            assert not( iter > 0 and np.isinf(p_AG))
-            print 'iter: %d' % iter
+            assert not(iter > 0 and np.isinf(p_AG))
+            print('fishy iter: {:d}'.format(iter))
             # logging.debug('iter: %d' % iter)
             improved = False
             prev_ss_idx = []
@@ -264,7 +272,9 @@ class ActionGraphExtractor:
                                     # logging.debug(ori_ac_str)
                                     # logging.debug(AG.actions[a_prev])
                                     # logging.debug(AG.actions[a_cur])
-                                    print '%s prob improved from %f to %f' % (iter, p_AG, new_p)
+                                    print('Change:{} ; Prob improved from {:f} '
+                                          'to {:f}'.format(num_changes,
+                                                           p_AG, new_p))
                                     p_AG = new_p
                                     improved = True
                                     num_changes = num_changes + 1
@@ -275,8 +285,14 @@ class ActionGraphExtractor:
                                     if not swapped_back:
                                         print 'error'
 
-                        prev_ss_idx.append(cur_si)
+                                    #for debugging
+                                    swapped_back_p = self.evaluate_models(AG)
+                                    if swapped_back_p != p_AG:
+                                       print 'error, not swapped back to the same graph'
+                                       tmp = self.OP_2SWAP(AG, prev_si, cur_si)
+                                    assert swapped_back_p == p_AG
 
+                        prev_ss_idx.append(cur_si)
             iter = iter + 1
 
         return num_changes
@@ -286,7 +302,8 @@ class ActionGraphExtractor:
         # find the best graph locally
         num_changes = 0
         for i, AG in enumerate(self.actionGraphs):
-            print 'Graph %d:' % i
+            print '\n\nGraph %d:' % i
+            sys.stdout.flush()
             # logging.debug('graph %d' % i)
             num_changes_graph = self.local_search(AG)
             num_changes = num_changes + num_changes_graph
@@ -306,3 +323,13 @@ class ActionGraphExtractor:
         self.partCompositeModel.M_step(AGs)
         self.rawMaterialModel.M_step(AGs)
         self.apparatusModel.M_step(AGs)
+
+    def print_all_models(self):
+        """
+        Print all the learnt models.
+        :return: None.
+        """
+        self.opSigModel.print_model()
+        self.partCompositeModel.print_model()
+        self.apparatusModel.print_model()
+        self.rawMaterialModel.print_model()

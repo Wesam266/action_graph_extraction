@@ -41,6 +41,10 @@ class OpSigModel:
         with open(fname, 'r') as f:
             self.op_sig_cnts, self.op_sig_model_dict = pickle.load(f)
 
+    def print_model(self):
+        print('Opsig model: ')
+        pprint.pprint(self.op_sig_model_dict)
+
     def reset(self):
         self.op_sig_cnts = np.array([0] * 8).astype(float)
         self.op_sig_model_dict = dict()
@@ -146,7 +150,7 @@ class OpSigModel:
             op_s_cnt = op_s_cnt + len(self.op_sig_cnts) * self.op_sig_cnts
             self.op_sig_model_dict[op] = self.norm_cnt(op_s_cnt)
         if VERBOSE:
-            print 'Opsig model: ', pprint.pprint(self.op_sig_model_dict)
+            self.print_model()
 
 
     def evaluate(self, actionGraph):
@@ -188,6 +192,10 @@ class RawMaterialModel:
         with open(fname, 'r') as f:
             self.model = pickle.load(f)
 
+    def print_model(self):
+        print('Raw material model: ')
+        pprint.pprint(dict(self.model))
+
     def M_step(self, actionGraphs):
         self.reset()
         str_data_dict = dict()
@@ -213,7 +221,7 @@ class RawMaterialModel:
         self.model['not_raw'] = Counter(str_data_dict['not_raw'])
 
         if VERBOSE:
-            print 'Raw material model: ', pprint.pprint(dict(self.model))
+            self.print_model()
 
     def evaluate(self, AG_raw_spans):
         """
@@ -263,6 +271,11 @@ class ApparatusModel:
         with open(fname, 'r') as f:
             self.model = pickle.load(f)
 
+    def print_model(self):
+        print('Apparatus Model: ')
+        pprint.pprint(dict(self.model))
+
+
     def get_all_apparatus(self, action, AG):
         aprts = []
         for arg in action.ARGs:
@@ -308,7 +321,7 @@ class ApparatusModel:
             self.val_sum += len(self.model[operation])
 
         if VERBOSE:
-            print 'Apparatus Model: ', pprint.pprint(dict(self.model))
+            self.print_model()
 
 
     def evaluate(self, action_i, arg_j, ss_k, AG):
@@ -372,6 +385,9 @@ class PartCompositeModel:
         with open(fname, 'r') as f:
             self.model = pickle.load(f)
 
+    def print_model(self):
+        print('Part Composite model: ')
+        pprint.pprint(dict(self.model))
 
     def get_all_materials(self, action, AG, recursive):
         all_materials = []
@@ -430,7 +446,7 @@ class PartCompositeModel:
             self.val_sum += len(self.model[intermed].values())
 
         if VERBOSE:
-            print 'Part Composite model: ', pprint.pprint(dict(self.model))
+            self.print_model()
 
 
     def evaluate(self, action_i, arg_j, ss_k, AG):
