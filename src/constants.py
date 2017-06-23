@@ -19,3 +19,10 @@ TRAIN_FILE_PRED='../../../material_science_ner/data/predictions/new_crf_train_pr
 TRAIN_FILE_FEAT ='../../../material_science_ner/data/features/new_crf_features_train.txt'
 DEV_FILE=''
 TEST_FILE=''
+
+# Token labels as used in the annotations; of use for the evaluations of the final graph outputs.
+token_classes = ['null', 'amt_unit', 'amt_misc', 'cnd_unit', 'cnd_misc',
+                 'material', 'target', 'operation', 'descriptor', 'prop_unit',
+                 'prop_type', 'synth_aprt', 'char_aprt', 'brand', 'intrmed',
+                 'number', 'meta', 'ref', 'prop_misc']
+token_class_dict = dict(zip(token_classes, range(len(token_classes))))
