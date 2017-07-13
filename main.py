@@ -1,6 +1,6 @@
 import os, sys
 import nltk
-import constants
+import agex_settings
 
 import graph_extractor
 
@@ -9,7 +9,7 @@ import graph_extractor
 def main():
     AGE = graph_extractor.ActionGraphExtractor()
     # Load train file and initialize connections sequentially.
-    AGE.load_train_file(constants.TRAIN_FILE_FEAT)
+    AGE.load_train_file(agex_settings.TRAIN_FILE_FEAT)
 
     # Do 5 iterations of E and M.
     for i in range(5):

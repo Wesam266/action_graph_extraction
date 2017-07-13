@@ -16,7 +16,7 @@ from collections import Counter, defaultdict
 
 # My imports.
 import utils
-import constants
+import agex_settings
 
 # Print out current models in each M_step.
 VERBOSE = False
@@ -206,14 +206,14 @@ class RawMaterialModel:
         for AG in actionGraphs:
             for action in AG.actions:
                 for arg in action.ARGs:
-                    if arg.sem_type == constants.MATERIAL_TAG:
+                    if arg.sem_type == agex_settings.MATERIAL_TAG:
                         for ss in arg.str_spans:
                             # if ss.origin == self.leaf_idx:
                             # Split on white space and count because its a
                             # naive bayes model over the toks in the ss.
                             str_data_dict['raw'].extend(ss.s.split())
                             # else:
-                    elif arg.sem_type == constants.INTERMEDIATE_PRODUCT_TAG:
+                    elif arg.sem_type == agex_settings.INTERMEDIATE_PRODUCT_TAG:
                         for ss in arg.str_spans:
                             str_data_dict['not_raw'].extend(ss.s.split())
 
@@ -279,7 +279,7 @@ class ApparatusModel:
     def get_all_apparatus(self, action, AG):
         aprts = []
         for arg in action.ARGs:
-            if arg.sem_type == constants.APPARATUS_TAG:
+            if arg.sem_type == agex_settings.APPARATUS_TAG:
                 for ss in arg.str_spans:
                     if ss.s:
                         aprts.append(ss.s)
@@ -298,7 +298,7 @@ class ApparatusModel:
                     # You'd only use this model when there wasn't a
                     # deterministic match to the previous actions apparatus
                     # so i have some doubts about this.
-                    if arg.sem_type == constants.APPARATUS_TAG:
+                    if arg.sem_type == agex_settings.APPARATUS_TAG:
                         for ss in arg.str_spans:
                             # Ensure that you're not trying to form counts
                             # for the first action by looking at the previous.

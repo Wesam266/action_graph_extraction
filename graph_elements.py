@@ -1,6 +1,6 @@
 import sys
 import pprint
-import constants
+import agex_settings
 
 
 class StringSpan:
@@ -124,8 +124,8 @@ class Action:
                 intermeds.append('') #Implicit argument.
             # Information about DOBJ or PP needs to come from a
             # dependency parse.
-            self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=constants.LEAF_INDEX))
-            self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=constants.LEAF_INDEX))
+            self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=agex_settings.LEAF_INDEX))
+            self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=agex_settings.LEAF_INDEX))
             self.ARGs.append(Argument(intermeds, 'DOBJ', 'intrmed'))
         else:
             self.omitted.append(text)
@@ -142,7 +142,7 @@ class Action:
                 if not is_leaf:
                     break
                 for s in arg.str_spans:
-                    if s.origin != constants.LEAF_INDEX:
+                    if s.origin != agex_settings.LEAF_INDEX:
                         is_leaf = False
                         break
             # If the arg is a intermediate set is_leaf to False.
@@ -251,7 +251,7 @@ class ActionGraph():
                 self.actions[0].rm_arg(i)
         for i, act in enumerate(self.actions):
             # If not the first action
-            if i > constants.LEAF_INDEX+1:
+            if i > agex_settings.LEAF_INDEX+1:
                 for arg in act.ARGs:
                     # Connect apparatus or intermediate to previous action.
                     # TODO: Look into whether setting apparatus sequentially

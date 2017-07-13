@@ -6,7 +6,7 @@ import logging
 # My imports.
 import connection_models
 import graph_elements
-import constants
+import agex_settings
 
 
 class ActionGraphExtractor:
@@ -15,7 +15,7 @@ class ActionGraphExtractor:
         self.actionGraphs = []
         self.prior_w = 0.1
 
-        self.leaf_idx = constants.LEAF_INDEX
+        self.leaf_idx = agex_settings.LEAF_INDEX
 
         self.opSigModel = connection_models.OpSigModel(self.prior_w)
         self.partCompositeModel = connection_models.PartCompositeModel(self.leaf_idx)
@@ -25,26 +25,26 @@ class ActionGraphExtractor:
         self.dump_dir = 'tmp'
 
     def load_pretrained_models(self, load_dir):
-        graph_fname = os.path.join(load_dir, constants.ACTION_GRAPH_FILE)
+        graph_fname = os.path.join(load_dir, agex_settings.ACTION_GRAPH_FILE)
         with open(graph_fname, 'r') as f:
             # still load this graph to use during NLP models' M_steps
             self.actionGraphs_nlp = pickle.load(f)
 
-        self.opSigModel.load(os.path.join(load_dir, constants.OP_SIG_MODEL_FILE))
-        self.rawMaterialModel.load(os.path.join(load_dir, constants.RAW_MATERIAL_MODEL_FILE))
-        self.partCompositeModel.load(os.path.join(load_dir, constants.PART_COMP_MODEL_FILE))
-        self.apparatusModel.load(os.path.join(load_dir, constants.APP_MODEL_FILE))
+        self.opSigModel.load(os.path.join(load_dir, agex_settings.OP_SIG_MODEL_FILE))
+        self.rawMaterialModel.load(os.path.join(load_dir, agex_settings.RAW_MATERIAL_MODEL_FILE))
+        self.partCompositeModel.load(os.path.join(load_dir, agex_settings.PART_COMP_MODEL_FILE))
+        self.apparatusModel.load(os.path.join(load_dir, agex_settings.APP_MODEL_FILE))
 
     def save_pretrained_models(self, save_dir):
-        graph_fname = os.path.join(save_dir, constants.ACTION_GRAPH_FILE)
+        graph_fname = os.path.join(save_dir, agex_settings.ACTION_GRAPH_FILE)
         with open(graph_fname, 'r') as f:
             # still load this graph to use during NLP models' M_steps
             self.actionGraphs_nlp = pickle.load(f)
 
-        self.opSigModel.load(os.path.join(save_dir, constants.OP_SIG_MODEL_FILE))
-        self.rawMaterialModel.load(os.path.join(save_dir, constants.RAW_MATERIAL_MODEL_FILE))
-        self.partCompositeModel.load(os.path.join(save_dir, constants.PART_COMP_MODEL_FILE))
-        self.apparatusModel.load(os.path.join(save_dir, constants.APP_MODEL_FILE))
+        self.opSigModel.load(os.path.join(save_dir, agex_settings.OP_SIG_MODEL_FILE))
+        self.rawMaterialModel.load(os.path.join(save_dir, agex_settings.RAW_MATERIAL_MODEL_FILE))
+        self.partCompositeModel.load(os.path.join(save_dir, agex_settings.PART_COMP_MODEL_FILE))
+        self.apparatusModel.load(os.path.join(save_dir, agex_settings.APP_MODEL_FILE))
 
     def load_train_file(self, train_file):
         annot = []
@@ -96,14 +96,14 @@ class ActionGraphExtractor:
             for arg_j, arg in enumerate(action.ARGs):
                 for ss_k, ss in enumerate(arg.str_spans):
                     log_prob_c = np.log(1)
-                    if arg.sem_type == constants.MATERIAL_TAG:
+                    if arg.sem_type == agex_settings.MATERIAL_TAG:
                         # if ss.origin == self.leaf_idx:
                         raw_materials.append(ss.s)
-                    elif arg.sem_type == constants.INTERMEDIATE_PRODUCT_TAG:
+                    elif arg.sem_type == agex_settings.INTERMEDIATE_PRODUCT_TAG:
                         prob = self.partCompositeModel.evaluate(act_i, arg_j, ss_k, AG)
                         pc_prob = pc_prob + prob
 
-                    elif arg.sem_type == constants.APPARATUS_TAG:
+                    elif arg.sem_type == agex_settings.APPARATUS_TAG:
                         # I think that if its the leaf index then let it stay.
                         # because now that the apparatus is also seq_inited
                         # only the first one has this case and there's no place
@@ -176,9 +176,9 @@ class ActionGraphExtractor:
             return False
 
         # Don't swap if swap causes intermediate to link to -1.
-        if ((ss2_sem_type is constants.INTERMEDIATE_PRODUCT_TAG) and
+        if ((ss2_sem_type is agex_settings.INTERMEDIATE_PRODUCT_TAG) and
                 (ori1_i == -1)) or \
-            ((ss1_sem_type is constants.INTERMEDIATE_PRODUCT_TAG) and
+            ((ss1_sem_type is agex_settings.INTERMEDIATE_PRODUCT_TAG) and
                 (ori2_i == -1)):
             return False
 
@@ -206,13 +206,13 @@ class ActionGraphExtractor:
         ori_sem_type2 = arg2.sem_type
 
         if ori_sem_type2 == '':
-            if ori_sem_type1 == constants.MATERIAL_TAG:
-                arg1.set_sem_type(constants.INTERMEDIATE_PRODUCT_TAG)
+            if ori_sem_type1 == agex_settings.MATERIAL_TAG:
+                arg1.set_sem_type(agex_settings.INTERMEDIATE_PRODUCT_TAG)
             else:
                 arg1.set_sem_type(ori_sem_type2)
         if ori_sem_type1 == '':
-            if ori_sem_type2 == constants.MATERIAL_TAG:
-                arg2.set_sem_type(constants.INTERMEDIATE_PRODUCT_TAG)
+            if ori_sem_type2 == agex_settings.MATERIAL_TAG:
+                arg2.set_sem_type(agex_settings.INTERMEDIATE_PRODUCT_TAG)
             else:
                 arg2.set_sem_type(ori_sem_type1)
 
