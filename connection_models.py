@@ -4,7 +4,7 @@ This file contains the linguistically motivated models for what a recipe
 should look like; as described in:
 "Mise en Place : Unsupervised Interpretation of Instructional Recipes"
 
-Implementation based on the implementations for the paper:
+Implementation based on the implementations for:
 "Unsupervised Visual-Linguistic Reference Resolution in Instructional Videos"
 by De-An Huang.
 '''
@@ -402,13 +402,12 @@ class PartCompositeModel:
         return all_materials
 
     def get_action_intermeds(self, action):
-        all_intrmeds = []
+        all_intrmeds = list()
         for arg in action.ARGs:
             if arg.sem_type == 'intrmed':
                 for ss in arg.str_spans:
                     all_intrmeds.append(ss.s)
         return all_intrmeds
-
 
     def M_step(self, actionGraphs):
         self.reset()
@@ -425,7 +424,7 @@ class PartCompositeModel:
                             # Get all materials from all the actions with a
                             # directed path to the current string span.
                             ori_mtrls = self.get_all_materials(
-                                AG.actions[ss.origin], AG, True)
+                                AG.actions[ss.origin], AG, False)
                             mtrls.append(ori_mtrls)
                 # Ideally the length of intermed_prods and mtrls should
                 # be the same.
@@ -465,7 +464,7 @@ class PartCompositeModel:
         assert ori_act_i != self.leaf_idx
 
         # Get materials from all prior actions with a directed path to ss
-        span_mtrls = self.get_all_materials(AG.actions[ss.origin], AG, True)
+        span_mtrls = self.get_all_materials(AG.actions[ss.origin], AG, False)
         cnt = 0
         for m in span_mtrls:
             if ss.s:

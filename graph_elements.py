@@ -1,5 +1,6 @@
-import sys
-import pprint
+import os, sys
+import pprint, re
+import json, codecs, copy
 import agex_settings
 
 
@@ -11,13 +12,13 @@ class StringSpan:
     def set_origin(self,i):
         self.origin = i
 
-    def __str__(self):
+    def __unicode__(self):
         s = self.s
-        s = s + ' (' + str(self.origin) + ')'
+        s = s + u' (' + unicode(self.origin) + u')'
         return s
 
-    def __repr__(self):
-        return self.__str__()
+    def __str__(self):
+        return unicode(self).encode('utf-8')
 
 
 class Argument:
@@ -49,86 +50,56 @@ class Argument:
             s = s + ' ' + ss.s
         return s.strip()
 
-    def __str__(self):
-        s = '[' + self.syn_type + ', ' + self.sem_type + '] '
-        s = s + 'prep: ' + self.prep + '; '
-        s = s + 'string spans: '
+    def __unicode__(self):
+        s = u'[' + self.syn_type + u', ' + self.sem_type + u'] '
+        s = s + u'prep: ' + self.prep + u'; '
+        s = s + u'string spans: '
         for sp in self.str_spans:
-            s = s + sp.__str__() + ' , '
+            s = s + sp.__unicode__() + u' , '
         return s
 
-    def __repr__(self):
-        return self.__str__()
+    def __str__(self):
+        return unicode(self).encode('utf-8')
 
 
 class Action:
-    def __init__(self, sentence_annotated):
+    def __init__(self, parsed_action_dict):
         """
 
-        :param sentence_annotated: A list of lists. Each sublist is one token.
+        :param parsed_action_dict:
         """
         self.ARGs = list()
         self.is_leaf = False
-        self.op = ''
-        self.omitted = list()
-        materials = list()
-        apparatus = list()
-        intermeds = list()
-        material_pos_tags = list()
-        apparatus_pos_tags = list()
-        text = ''
-        prep = ''
-        temp_ops = list()
-        for tok_annotation in sentence_annotated:
-            text = text + ' ' + tok_annotation[0]
-            # Don't assume that theres a single operation. Read them all in
-            # and then pick.
-            if tok_annotation[1] == 'B-operation':
-                temp_ops.append(tok_annotation[0])
-            elif tok_annotation[1] == 'I-operation':
-                temp_ops[-1] = temp_ops[-1] + ' ' + tok_annotation[0]
-            elif tok_annotation[1] == 'B-material':
-                materials.append(tok_annotation[0])
-                material_pos_tags.append(tok_annotation[6])
-            elif tok_annotation[1] == 'I-material':
-                materials[-1] = materials[-1] + ' ' + tok_annotation[0]
-            elif tok_annotation[1] == 'B-synth_aprt':
-                apparatus.append(tok_annotation[0])
-                apparatus_pos_tags.append(tok_annotation[6])
-            elif tok_annotation[1] == 'I-synth_aprt':
-                apparatus[-1] = apparatus[-1] + ' ' + tok_annotation[0]
-            elif tok_annotation[1] == 'B-intrmed':
-                intermeds.append(tok_annotation[0])
-            elif tok_annotation[1] == 'I-intrmed':
-                intermeds[-1] = intermeds[-1] + ' ' + tok_annotation[0]
-            # The prepositional phrases are all ignored for now.
-            # elif tok_annotation[10] == 'case':
-            #     prep += tok_annotation[0]
-            # elif tok_annotation[10] == 'det' and prep:
-            #     prep += tok_annotation[0]
-            # print prep
-            # prep = ''
+        self.op = parsed_action_dict[u'operation']
 
-        # Pick the first op among multiple ops
-        self.op = temp_ops[0]
-        # TODO: Get rid of this if statement and the ommited thing because
-        # you dont really need it. --low priority.
-        if self.op:
-            # print self.op
-            # if len(materials) == 0:
-            #     materials.append('') #Implicit argument
-            if len(apparatus) == 0:
-                apparatus.append('') #Implicit argument
-            if len(intermeds) == 0:
-                # TODO Has to be removed for the first operation.
-                intermeds.append('') #Implicit argument.
-            # Information about DOBJ or PP needs to come from a
-            # dependency parse.
-            self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=agex_settings.LEAF_INDEX))
-            self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=agex_settings.LEAF_INDEX))
-            self.ARGs.append(Argument(intermeds, 'DOBJ', 'intrmed'))
-        else:
-            self.omitted.append(text)
+        materials = copy.deepcopy(parsed_action_dict[u'mat_nsubjpass'])
+        materials.extend(parsed_action_dict[u'mat_prepp'])
+
+        intermeds = copy.deepcopy(parsed_action_dict[u'int_nsubjpass'])
+        intermeds.extend(parsed_action_dict[u'int_prepp'])
+
+        apparatus = copy.deepcopy(parsed_action_dict[u'app_nsubjpass'])
+        apparatus.extend(parsed_action_dict[u'app_prepp'])
+
+        # Removing these empty strings for now because we're conditionally
+        # adding them below but idk if I should do this.
+        if u' ' in materials:
+            materials.remove(u' ')
+        if u' ' in materials:
+            intermeds.remove(u' ')
+        if u' ' in materials:
+            apparatus.remove(u' ')
+        # if len(materials) == 0:
+        #     materials.append('') #Implicit argument
+        if len(apparatus) == 0:
+            apparatus.append('') #Implicit argument
+        if len(intermeds) == 0:
+            # TODO Has to be removed for the first operation.
+            intermeds.append('') #Implicit argument.
+        # Information about DOBJ or PP needs to come from a dependency parse.
+        self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=agex_settings.LEAF_INDEX))
+        self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=agex_settings.LEAF_INDEX))
+        self.ARGs.append(Argument(intermeds, 'DOBJ', 'intrmed'))
 
     def set_isLeaf(self):
         self.is_leaf = True
@@ -165,40 +136,28 @@ class Action:
     def rm_arg(self, i):
         del self.ARGs[i]
 
-    def __str__(self):
-        s = 'Action {:d}: '.format(self.idx) + ' Operation: {}'.format(self.op) + '\n'
+    def __unicode__(self):
+        s = u'Action {:d}: '.format(self.idx) + u' Operation: {}'.format(self.op) + u'\n'
         for arg in self.ARGs:
-            s = s + arg.__str__() + '\n'
+            s = s + arg.__unicode__() + u'\n'
         return s
 
-    def __repr__(self):
-        return self.__str__()
+    def __str__(self):
+        return unicode(self).encode('utf-8')
 
 
 class ActionGraph():
-    def __init__(self, recipe_annotated):
+    def __init__(self, parsed_actions_li, paper_doi):
         """
 
-        :param recipe_annotated: A list of lists with each sublist being an
-            annotated token. Sublist with one '' element delimits sentences.
+        :param parsed_actions_li: list(dict())
+        :param paper_doi: string
         """
-        self.actions = []
-        sentence = []
-        sentence_ann = []
-        for tok_annotation in recipe_annotated:
-            # If you get to the end of a sentence initialize an action.
-            if tok_annotation[0] == '' and len(tok_annotation) == 1:
-                # Only add the sentence as an action if it has a op in it.
-                if ('B-operation' in sentence_ann) or \
-                    ('I-operation' in sentence_ann):
-                    self.actions.append(Action(sentence))
-                # Empty the sentence tokens and annotations irrespective!
-                sentence = []
-                sentence_ann = []
-            # Keep appending till you get to the end of a sentence.
-            else:
-                sentence.append(tok_annotation)
-                sentence_ann.append(tok_annotation[1])
+        self.paper_doi = paper_doi
+        self.actions = list()
+
+        for parsed_action_dict in parsed_actions_li:
+            self.actions.append(Action(parsed_action_dict))
 
         for i, act in enumerate(self.actions):
             act.set_idx(i)
@@ -260,21 +219,28 @@ class ActionGraph():
                         for ss in arg.str_spans:
                             ss.set_origin(i-1)
 
-    def __str__(self):
-        graph = ''
+    def __unicode__(self):
+        graph = u'DOI: {:s}\n'.format(self.paper_doi)
         for act in self.actions:
-            graph += act.__str__() + '\n'
+            graph += act.__unicode__() + u'\n'
         return graph
+
+    def __str__(self):
+        return unicode(self).encode('utf-8')
 
 
 def test():
-    TRAIN_FILE = '../data/exp2.txt'
-    annot = []
-    for line in open(TRAIN_FILE):
-        split = line.strip().split("\t")
-        annot.append(split)
+    paper_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
+                 u'predsynth-annotated_papers-train/' \
+                 u'10.1016-j.fuel.2012.04.006_parsed.json'
 
-    print ActionGraph(annot)
+    with codecs.open(paper_path, u'r', u'utf-8') as fp:
+        paper_dict = json.load(fp, encoding=u'utf-8')
+    pprint.pprint(paper_dict[u'actions'])
+
+    actions_li = paper_dict[u'actions']
+    paper_doi = paper_dict[u'doi']
+    print(ActionGraph(parsed_actions_li=actions_li, paper_doi=paper_doi))
 
 if __name__ == '__main__':
     test()

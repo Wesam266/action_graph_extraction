@@ -1,3 +1,4 @@
+import sys, codecs
 
 ACTION_GRAPH_FILE='actionGraphs.pkl'
 OP_SIG_MODEL_FILE='opSigModel.pkl'
@@ -19,6 +20,9 @@ TRAIN_FILE_PRED='../../../material_science_ner/data/predictions/new_crf_train_pr
 TRAIN_FILE_FEAT ='../../../material_science_ner/data/features/new_crf_features_train.txt'
 DEV_FILE=''
 TEST_FILE=''
+
+# Path to data JSON files.
+data_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json'
 
 # Token labels as used in the annotations; of use for the evaluations of the final graph outputs.
 token_classes = ['null', 'amt_unit', 'amt_misc', 'cnd_unit', 'cnd_misc',

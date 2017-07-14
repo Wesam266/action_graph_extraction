@@ -1,17 +1,17 @@
 import numpy as np
 import cPickle as pickle
-import os, sys
+import os, sys, codecs
 import logging
 
 # My imports.
 import connection_models
 import graph_elements
 import agex_settings
+import utils
 
 
 class ActionGraphExtractor:
     def __init__(self):
-        print "EXTRACTOR: Initializing"
         self.actionGraphs = []
         self.prior_w = 0.1
 
@@ -46,36 +46,31 @@ class ActionGraphExtractor:
         self.partCompositeModel.load(os.path.join(save_dir, agex_settings.PART_COMP_MODEL_FILE))
         self.apparatusModel.load(os.path.join(save_dir, agex_settings.APP_MODEL_FILE))
 
-    def load_train_file(self, train_file):
-        annot = []
-        next_rec_begin = False
+    def load_parsed_recipes(self, doi_file, db_name, collection_name,
+                            set_suffix):
+        """
+        Take an opened file with dois in it and read the parsed papers from
+        disk.
+        :param doi_file: file object; each line is a doi.
+        :param db_name: string; says which db data came from.
+        :param collection_name: string; says which collection data came from.
+        :param set_suffix: string; says if this is the train/test/dev split.
+        :return: None.
+        """
         recipe_count = 0
-        for line in open(train_file):
-            split = line.strip().split("\t")
-            # If not a blank line look some more.
-            if split[0] != '' and len(split) != 1:
-                # If the next recipe is beginning then make a AG
-                # with the actions (sentences) you have so far.
-                if split[2] == '0' and next_rec_begin is True:
-                    self.actionGraphs.append(graph_elements.ActionGraph(annot))
-                    recipe_count += 1
-                    annot = []
-                    annot.append(split)
-                    next_rec_begin = False
-                else:
-                    next_rec_begin = True
-                    annot.append(split)
-            else:
-                # Append blank lines so that they can be used to
-                # distinguish between sentences. Could also be done
-                # with the sentence indices I think.
-                annot.append(split)
-        # Handle last recipe individually.
-        self.actionGraphs.append(graph_elements.ActionGraph(annot))
-        recipe_count += 1
+        for doi_line in doi_file:
+            doi_str = doi_line.strip()
+            # Get paper data we care about.
+            actions_li = utils.read_parsed_paper(
+                doi_str, db_name=db_name, collection_name=collection_name,
+                set_suffix=set_suffix)
+            if actions_li:
+                print(u'Read: {}'.format(doi_line))
+                self.actionGraphs.append(graph_elements.ActionGraph(
+                    parsed_actions_li=actions_li, paper_doi=doi_str))
+                recipe_count += 1
 
-        print('EXTRACTOR: Loaded {} recipes'.format(recipe_count))
-
+        print(u'EXTRACTOR: Loaded {} recipes'.format(recipe_count))
 
     def evaluate_models(self, AG, verbose=False):
         log_prob = np.log(1)
@@ -86,7 +81,7 @@ class ActionGraphExtractor:
         log_prob += opSigProb
 
         if verbose:
-            print 'opSigProb ', opSigProb
+            print(u'opSigProb: {}'.format(opSigProb))
 
         pc_prob = 0
         app_prob = 0
@@ -120,12 +115,11 @@ class ActionGraphExtractor:
 
         raw_probs = self.rawMaterialModel.evaluate(raw_materials)
         if verbose:
-            print 'rawMaterialProb ', np.sum(raw_probs)
+            print(u'rawMaterialProb: {}'.format(np.sum(raw_probs)))
 
         log_prob = log_prob + np.sum(raw_probs)
         if verbose:
-            print 'full prob ', log_prob
-
+            print(u'full prob: {}'.format(log_prob))
         return log_prob
 
     def get_new_sem_type(self, action):
@@ -248,7 +242,7 @@ class ActionGraphExtractor:
 
         while improved and iter < max_iter:
             assert not(iter > 0 and np.isinf(p_AG))
-            print('fishy iter: {:d}'.format(iter))
+            print(u'fishy iter: {:d}'.format(iter))
             # logging.debug('iter: %d' % iter)
             improved = False
             prev_ss_idx = []
@@ -302,7 +296,7 @@ class ActionGraphExtractor:
         # find the best graph locally
         num_changes = 0
         for i, AG in enumerate(self.actionGraphs):
-            print '\n\nGraph %d:' % i
+            print(u'\n\nGraph {:d}: doi: {}'.format(i, AG.paper_doi))
             sys.stdout.flush()
             # logging.debug('graph %d' % i)
             num_changes_graph = self.local_search(AG)
