@@ -25,12 +25,12 @@ def run_extractors(doi_fname, db_name, collection_name, set_suffix, em_iters):
             break
 
     # Print models and graphs learnt.
-    AGE.M_step_all()
     AGE.print_all_models()
     for i, AG in enumerate(AGE.actionGraphs):
         print(u'\n\n\nAction graph {}'.format(i))
         # Not using this unicode thing here gives me some very annoying errors.
         print(unicode(AG))
+
 
 
 def main():
@@ -55,7 +55,7 @@ def main():
                         default=u'train',
                         help=u'Suffix of the output directory.')
     parser.add_argument(u'--em_iters', type=int,
-                        default=5,
+                        required=True,
                         help=u'Number of EM iterations to perform.')
     cl_args = parser.parse_args()
 

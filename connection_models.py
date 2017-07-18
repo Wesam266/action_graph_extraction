@@ -387,7 +387,10 @@ class PartCompositeModel:
 
     def print_model(self):
         print('Part Composite model: ')
-        pprint.pprint(dict(self.model))
+        keys = self.model.keys()
+        keys.sort()
+        for intermed in keys:
+            print(u'{}: {}\n'.format(intermed, self.model[intermed]))
 
     def get_all_materials(self, action, AG, recursive):
         all_materials = []
@@ -424,14 +427,14 @@ class PartCompositeModel:
                             # Get all materials from all the actions with a
                             # directed path to the current string span.
                             ori_mtrls = self.get_all_materials(
-                                AG.actions[ss.origin], AG, False)
+                                AG.actions[ss.origin], AG, True)
                             mtrls.append(ori_mtrls)
                 # Ideally the length of intermed_prods and mtrls should
                 # be the same.
                 assert len(intrmed_prods) == len(mtrls)
                 for each_interm, each_ori_mats in zip(intrmed_prods, mtrls):
                     for ori_mat in each_ori_mats:
-                        if each_interm:
+                        if each_interm != u'':
                             self.model[each_interm][ori_mat] += 1
                         else:
                             self.model['IMPLCT_ARG'][ori_mat] += 1
@@ -464,10 +467,10 @@ class PartCompositeModel:
         assert ori_act_i != self.leaf_idx
 
         # Get materials from all prior actions with a directed path to ss
-        span_mtrls = self.get_all_materials(AG.actions[ss.origin], AG, False)
+        span_mtrls = self.get_all_materials(AG.actions[ss.origin], AG, True)
         cnt = 0
         for m in span_mtrls:
-            if ss.s:
+            if ss.s != u'':
                 cnt += self.model[ss.s][m]
             else:
                 cnt += self.model['IMPLCT_ARG'][m] #skc: could be incorrect
