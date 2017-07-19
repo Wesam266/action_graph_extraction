@@ -1,6 +1,7 @@
 import os, sys
 import pprint, re
 import json, codecs, copy
+import networkx as nx
 import agex_settings
 
 
@@ -31,7 +32,7 @@ class StringSpan:
         return s
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return unicode(self).encode(u'utf-8')
 
 
 class Argument:
@@ -72,10 +73,9 @@ class Argument:
         spans = list()
         for ss_idx, ss in enumerate(self.str_spans):
             aug_ss = copy.deepcopy(ss.ss_to_nx())
-            aug_ss[u'syn_type'] = self.syn_type
             aug_ss[u'sem_type'] = self.sem_type
-            aug_ss[u'isImplicit'] = self.isImplicit
-            aug_ss[u'isArg'] = True
+            aug_ss[u'is_implicit'] = self.isImplicit
+            aug_ss[u'is_arg'] = True
             aug_ss[u'ss_id'] = ss_idx
             aug_ss[u'arg_id'] = None  # id of the argument has to be set below.
             spans.append(aug_ss)
@@ -90,7 +90,7 @@ class Argument:
         return s
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return unicode(self).encode(u'utf-8')
 
 
 class Action:
@@ -126,9 +126,9 @@ class Action:
         if len(intermeds) == 0:
             intermeds.append('')  # Implicit argument.
         # Information about DOBJ or PP needs to come from a dependency parse.
-        self.ARGs.append(Argument(materials, 'DOBJ', 'material', origin=agex_settings.LEAF_INDEX))
-        self.ARGs.append(Argument(apparatus, 'DOBJ', 'apparatus', origin=agex_settings.LEAF_INDEX))
-        self.ARGs.append(Argument(intermeds, 'DOBJ', 'intrmed'))
+        self.ARGs.append(Argument(materials, u'DOBJ', u'material', origin=agex_settings.LEAF_INDEX))
+        self.ARGs.append(Argument(apparatus, u'DOBJ', u'apparatus', origin=agex_settings.LEAF_INDEX))
+        self.ARGs.append(Argument(intermeds, u'DOBJ', u'intrmed'))
 
     def set_isLeaf(self):
         self.is_leaf = True
@@ -137,7 +137,7 @@ class Action:
         is_leaf = True
         for arg in self.ARGs:
             # If not an intermediate then check spans for their origins.
-            if arg.sem_type != 'intrmed':
+            if arg.sem_type != u'intrmed':
                 # A single non leaf origin span makes is_leaf = False.
                 if not is_leaf:
                     break
@@ -174,7 +174,7 @@ class Action:
         act_node = {
             u'operation': self.op,
             u'act_id': None,  # Index of the action which *HAS* to be set.
-            u'isArg': False  # Its an operation if its not an argument.
+            u'is_arg': False  # Its an operation if its not an argument.
         }
         act_list.extend([act_node])
         for arg_idx, ARG in enumerate(self.ARGs):
@@ -191,7 +191,7 @@ class Action:
         return s
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return unicode(self).encode(u'utf-8')
 
 
 class ActionGraph():
@@ -230,7 +230,7 @@ class ActionGraph():
         count=0
         for action in self.actions:
             for arg in action.ARGs:
-                if arg.sem_type == 'material':
+                if arg.sem_type == u'material':
                     count+=1
         return count
 
@@ -238,7 +238,7 @@ class ActionGraph():
         count=0
         for action in self.actions:
             for arg in action.ARGs:
-                if arg.sem_type == 'intrmed':
+                if arg.sem_type == u'intrmed':
                     count += 1
         return count
 
@@ -246,14 +246,14 @@ class ActionGraph():
         count=0
         for action in self.actions:
             for arg in action.ARGs:
-                if arg.sem_type == 'apparatus':
+                if arg.sem_type == u'apparatus':
                     count+=1
         return count
 
     def seq_init(self):
         # This removing intermediate looks like a hack.
         for i, arg in enumerate(self.actions[0].ARGs):
-            if arg.sem_type == 'intrmed':
+            if arg.sem_type == u'intrmed':
                 self.actions[0].rm_arg(i)
         self.actions[0].set_isLeaf()
         for i, act in enumerate(self.actions):
@@ -263,41 +263,70 @@ class ActionGraph():
                     # Connect apparatus or intermediate to previous action.
                     # TODO: Look into whether setting apparatus sequentially
                     # does anything bad.
-                    if arg.sem_type in ['intrmed', 'apparatus']:
+                    if arg.sem_type in [u'intrmed', u'apparatus']:
                         for ss in arg.str_spans:
                             ss.set_origin(i-1)
 
-    def _nx_node_id(self, act_id, arg_id, ss_id):
+    def _nx_node_id(self, node_dict):
         """
         Given the node ids return a string to use as the node id in the networkx
         graph.
         :return: string.
         """
-        if arg_id != None:
-            out_str = u'act-{}_arg-{}_ss-{}'.format(act_id, arg_id, ss_id)
+        if node_dict[u'is_arg'] != True:
+            out_str = u'{}_{}'.format(node_dict[u'operation'],
+                                      node_dict[u'act_id'])
             return out_str
         else:
-            out_str = u'act-{}'.format(act_id)
+            # Ideally I should be able to check is_arg but idk if that works
+            # as it should.
+            if node_dict[u'str_span'] != u'':
+                out_str = u'{}_{}{}{}'.format(node_dict[u'str_span'],
+                                              node_dict[u'act_id'],
+                                              node_dict[u'arg_id'],
+                                              node_dict[u'ss_id'])
+            else:
+                out_str = u'impl_arg_{}{}{}'.format(node_dict[u'act_id'],
+                                                    node_dict[u'arg_id'],
+                                                    node_dict[u'ss_id'])
             return out_str
 
-    def _nx_get_edges(self, node_dict):
+    def _nx_get_edges(self, act_nodes):
         """
         Return edges as a list of tuples.
         :param node_dict:
         :return:
         """
+        # Build a map going from act_id to id.
+        origin_id_map = dict()
+        for act_supnode in act_nodes:
+            for node in act_supnode:
+                if node[u'is_arg'] != True:
+                    origin_id_map[node[u'act_id']] = node[u'id']
+        # This is a hack so i dont have to write a conditional below.
+        origin_id_map[-1] = -1
+
         node_edges = list()
-        # Edge to the origin.
-        if node_dict[u'origin'] != -1:
-            source = self._nx_node_id(node_dict[u'origin'], None, None)
-            dest = self._nx_node_id(node_dict[u'act_id'], node_dict[u'arg_id'],
-                                    node_dict[u'ss_id'])
-            node_edges.extend([tuple((source, dest))])
-        # Always add the edge to the current operation.
-        source = self._nx_node_id(node_dict[u'act_id'], None, None)
-        dest = self._nx_node_id(node_dict[u'act_id'], node_dict[u'arg_id'],
-                                node_dict[u'ss_id'])
-        node_edges.extend([tuple((source, dest))])
+        for act_supnode in act_nodes:
+            for node in act_supnode:
+                if node[u'is_arg'] == False:
+                    op_node = node
+                # Connect up intermediates to their origins.
+                if node[u'is_arg'] and node[u'sem_type'] == u'intermed':
+                    # Get the source and dest.
+                    source = origin_id_map[node[u'origin']]
+                    dest = node[u'id']
+                    # Update the origin to be readable in the attr dict.
+                    node[u'origin'] = origin_id_map[node[u'origin']]
+                    node_edges.extend([tuple((source, dest))])
+                # Connect up other nodes to the present operation.
+                elif node[u'is_arg'] and node[u'sem_type'] != u'intermed':
+                    # Get the source and dest.
+                    source = node[u'id']
+                    dest = op_node[u'id']
+                    # Update the link to be readable in the attr dict.
+                    node[u'origin'] = origin_id_map[node[u'origin']]
+                    node_edges.extend([tuple((source, dest))])
         return node_edges
 
     def _nx_get_nodes_edges(self):
@@ -306,38 +335,29 @@ class ActionGraph():
         :return:
         """
         # TODO: Try to do a better (consistent) job with populating this node
-        # attr dict. - medium-priority
-        nodes = list()
+        # attr dict. - low-priority
+        act_nodes = list()
         # Get the nodes for each action and set order indices of the operations
         # and nominally, the arguments as well.
         for aidx, action in enumerate(self.actions):
-            act_nodes = copy.deepcopy(action.act_to_nx())
+            nodes = copy.deepcopy(action.act_to_nx())
             # Set order of operation nodes.
-            for act_node in act_nodes:
-                act_node[u'act_id'] = aidx
-                if act_node[u'isArg']:
-                    act_node[u'id'] = self._nx_node_id(act_node[u'act_id'],
-                                                       act_node[u'arg_id'],
-                                                       act_node[u'ss_id'])
-                else:
-                    act_node[u'id'] = self._nx_node_id(act_node[u'act_id'],
-                                                       None, None)
-            nodes.extend(act_nodes)
-        # Build the list of edges; the node already has the edge info. Just get
-        # it out. There might be nicer ways to do this.
-        edges = list()
-        for node in nodes:
-            if node[u'isArg']:
-                edges.extend(self._nx_get_edges(node))
-        return nodes, edges
+            for node in nodes:
+                node[u'act_id'] = aidx
+                node[u'id'] = self._nx_node_id(node)
+            act_nodes.append(nodes)
+        # Build the list of edges; this is similar to how its done in the
+        # annotations conversion.
+        edges = self._nx_get_edges(act_nodes)
+        # Flatten the list of list of nodes. (Each sublist is an action)
+        act_nodes = [val for sublist in act_nodes for val in sublist]
+        return act_nodes, edges
 
     def ag_to_nx(self):
         """
         Convert the AG to a networkx graph.
         :return:
         """
-        import networkx as nx
-
         nodes, edges = self._nx_get_nodes_edges()
         nx_graph = nx.MultiGraph(name=self.paper_doi)
 
@@ -358,24 +378,44 @@ class ActionGraph():
         return graph
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return unicode(self).encode(u'utf-8')
 
 
-def test():
+# Some hacky test code. This could go elsewhere but idc now.
+def test_seq():
     paper_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
                  u'predsynth-annotated_papers-train/' \
                  u'10.1016-j.jpcs.2004.05.002_parsed.json'
 
     with codecs.open(paper_path, u'r', u'utf-8') as fp:
         paper_dict = json.load(fp, encoding=u'utf-8')
-    pprint.pprint(paper_dict[u'actions'])
+
+    actions_li = paper_dict[u'actions']
+    paper_doi = paper_dict[u'doi']
+    AG = ActionGraph(parsed_actions_li=actions_li, paper_doi=paper_doi)
+    print(AG)
+
+
+def test_nx():
+    paper_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
+                 u'predsynth-annotated_papers-train/' \
+                 u'10.1016-j.jpcs.2004.05.002_parsed.json'
+
+    with codecs.open(paper_path, u'r', u'utf-8') as fp:
+        paper_dict = json.load(fp, encoding=u'utf-8')
 
     actions_li = paper_dict[u'actions']
     paper_doi = paper_dict[u'doi']
     AG = ActionGraph(parsed_actions_li=actions_li, paper_doi=paper_doi)
     print(AG)
     graph = AG.ag_to_nx()
-    print(graph.name)
+    pprint.pprint(graph.nodes())
+    pprint.pprint(graph.edges())
 
-if __name__ == '__main__':
-    test()
+if __name__ == u'__main__':
+    if sys.argv[-1] == u'--test_nx':
+        test_nx()
+    elif sys.argv[-1] == u'--test_seq':
+        test_seq()
+    else:
+        print(u'Bunch of classes; dont run this stuff. :-P')
