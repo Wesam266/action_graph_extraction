@@ -274,19 +274,19 @@ class ActionGraph():
         :return: string.
         """
         if node_dict[u'is_arg'] != True:
-            out_str = u'{}_{}'.format(node_dict[u'operation'],
-                                      node_dict[u'act_id'])
+            out_str = u'{}_{}'.format(node_dict[u'act_id'],
+                                      node_dict[u'operation'])
             return out_str
         else:
             # Ideally I should be able to check is_arg but idk if that works
             # as it should.
             if node_dict[u'str_span'] != u'':
-                out_str = u'{}_{}{}{}'.format(node_dict[u'str_span'],
-                                              node_dict[u'act_id'],
+                out_str = u'{}{}{}_{}'.format(node_dict[u'act_id'],
                                               node_dict[u'arg_id'],
-                                              node_dict[u'ss_id'])
+                                              node_dict[u'ss_id'],
+                                              node_dict[u'str_span'])
             else:
-                out_str = u'impl_arg_{}{}{}'.format(node_dict[u'act_id'],
+                out_str = u'{}{}{}_impl_arg'.format(node_dict[u'act_id'],
                                                     node_dict[u'arg_id'],
                                                     node_dict[u'ss_id'])
             return out_str
@@ -312,7 +312,7 @@ class ActionGraph():
                 if node[u'is_arg'] == False:
                     op_node = node
                 # Connect up intermediates to their origins.
-                if node[u'is_arg'] and node[u'sem_type'] == u'intermed':
+                if node[u'is_arg'] and node[u'sem_type'] == u'intrmed':
                     # Get the source and dest.
                     source = origin_id_map[node[u'origin']]
                     dest = node[u'id']
@@ -320,7 +320,7 @@ class ActionGraph():
                     node[u'origin'] = origin_id_map[node[u'origin']]
                     node_edges.extend([tuple((source, dest))])
                 # Connect up other nodes to the present operation.
-                elif node[u'is_arg'] and node[u'sem_type'] != u'intermed':
+                elif node[u'is_arg'] and node[u'sem_type'] != u'intrmed':
                     # Get the source and dest.
                     source = node[u'id']
                     dest = op_node[u'id']
