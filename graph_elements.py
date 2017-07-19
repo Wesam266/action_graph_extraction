@@ -371,6 +371,19 @@ class ActionGraph():
 
         return nx_graph
 
+    def save_ag_as_nxgraph(self, path):
+        """
+        Save the action graph as a pickeled networkx graph to disk.
+        :param path: string; path to directory to save graph in.
+        :return: nx_graph
+        """
+        nx_graph = self.ag_to_nx()
+        temp_name = os.path.join(path,re.sub(u'/', u'-', self.paper_doi))
+        paper_nxg_path = temp_name + u'_learnt_nxg.pkl'
+        nx.write_gpickle(nx_graph, paper_nxg_path)
+        print(u'Wrote: {}'.format(paper_nxg_path))
+        return nx_graph
+
     def __unicode__(self):
         graph = u'DOI: {:s}\n'.format(self.paper_doi)
         for act in self.actions:
@@ -412,10 +425,30 @@ def test_nx():
     pprint.pprint(graph.nodes())
     pprint.pprint(graph.edges())
 
+
+def test_nx_write():
+    paper_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
+                 u'predsynth-annotated_papers-train/' \
+                 u'10.1016-j.apcatb.2008.07.007_parsed.json'
+    write_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
+                 u'predsynth-annotated_papers-example/'
+    with codecs.open(paper_path, u'r', u'utf-8') as fp:
+        paper_dict = json.load(fp, encoding=u'utf-8')
+
+    actions_li = paper_dict[u'actions']
+    paper_doi = paper_dict[u'doi']
+    AG = ActionGraph(parsed_actions_li=actions_li, paper_doi=paper_doi)
+    graph = AG.save_ag_as_nxgraph(write_path)
+    pprint.pprint(graph.nodes())
+    pprint.pprint(graph.edges())
+
+
 if __name__ == u'__main__':
     if sys.argv[-1] == u'--test_nx':
         test_nx()
     elif sys.argv[-1] == u'--test_seq':
         test_seq()
+    elif sys.argv[-1] == u'--test_nx_write':
+        test_nx_write()
     else:
         print(u'Bunch of classes; dont run this stuff. :-P')
