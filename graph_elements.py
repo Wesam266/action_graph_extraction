@@ -319,13 +319,15 @@ class ActionGraph():
                     # Update the origin to be readable in the attr dict.
                     node[u'origin'] = origin_id_map[node[u'origin']]
                     node_edges.extend([tuple((source, dest))])
-                # Connect up other nodes to the present operation.
-                elif node[u'is_arg'] and node[u'sem_type'] != u'intrmed':
+                # Connect up all nodes to the present operation.
+                if node[u'is_arg']:
                     # Get the source and dest.
                     source = node[u'id']
                     dest = op_node[u'id']
-                    # Update the link to be readable in the attr dict.
-                    node[u'origin'] = origin_id_map[node[u'origin']]
+                    # Update the link to be readable in the attr dict if its
+                    # not been done yet.
+                    if type(node[u'origin']) == u'int':
+                        node[u'origin'] = origin_id_map[node[u'origin']]
                     node_edges.extend([tuple((source, dest))])
         return node_edges
 
@@ -394,11 +396,11 @@ class ActionGraph():
         return unicode(self).encode(u'utf-8')
 
 
-# Some hacky test code. This could go elsewhere but idc now.
+# Some hacky test code. This could go elsewhere but idc for now.
 def test_seq():
     paper_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
                  u'predsynth-annotated_papers-train/' \
-                 u'10.1016-j.jpcs.2004.05.002_parsed.json'
+                 u'10.1016-j.apcatb.2008.07.007_parsed.json'
 
     with codecs.open(paper_path, u'r', u'utf-8') as fp:
         paper_dict = json.load(fp, encoding=u'utf-8')
@@ -412,7 +414,7 @@ def test_seq():
 def test_nx():
     paper_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
                  u'predsynth-annotated_papers-train/' \
-                 u'10.1016-j.jpcs.2004.05.002_parsed.json'
+                 u'10.1016-j.apcatb.2008.07.007_parsed.json'
 
     with codecs.open(paper_path, u'r', u'utf-8') as fp:
         paper_dict = json.load(fp, encoding=u'utf-8')
