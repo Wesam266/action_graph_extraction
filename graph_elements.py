@@ -318,7 +318,8 @@ class ActionGraph():
                     dest = node[u'id']
                     # Update the origin to be readable in the attr dict.
                     node[u'origin'] = origin_id_map[node[u'origin']]
-                    node_edges.extend([tuple((source, dest))])
+                    node_edges.extend([tuple((source, dest,
+                                              {u'is_parsed': False}))])
                 # Connect up all nodes to the present operation.
                 if node[u'is_arg']:
                     # Get the source and dest.
@@ -328,7 +329,8 @@ class ActionGraph():
                     # not been done yet.
                     if type(node[u'origin']) == u'int':
                         node[u'origin'] = origin_id_map[node[u'origin']]
-                    node_edges.extend([tuple((source, dest))])
+                    node_edges.extend([tuple((source, dest,
+                                              {u'is_parsed': True}))])
         return node_edges
 
     def _nx_get_nodes_edges(self):
@@ -369,7 +371,7 @@ class ActionGraph():
 
         # Add all edges to graph.
         for edge in edges:
-            nx_graph.add_edge(u=edge[0], v=edge[1])
+            nx_graph.add_edge(u=edge[0], v=edge[1], attr_dict=edge[2])
 
         return nx_graph
 
@@ -379,6 +381,8 @@ class ActionGraph():
         :param path: string; path to directory to save graph in.
         :return: nx_graph
         """
+        # TODO: This needs to be more flexible. Allow for specification of
+        # either a learnt or seqinit suffix. --medium-priority.
         nx_graph = self.ag_to_nx()
         temp_name = os.path.join(path,re.sub(u'/', u'-', self.paper_doi))
         paper_nxg_path = temp_name + u'_learnt_nxg.pkl'
