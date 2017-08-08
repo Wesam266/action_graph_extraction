@@ -8,7 +8,7 @@ Implementation based on the implementations for:
 "Unsupervised Visual-Linguistic Reference Resolution in Instructional Videos"
 by De-An Huang.
 '''
-
+from __future__ import unicode_literals
 import numpy as np
 import sys, os
 import pickle, pprint, decimal
@@ -431,7 +431,7 @@ class PartCompositeModel:
                             mtrls.append(ori_mtrls)
                 # Ideally the length of intermed_prods and mtrls should
                 # be the same.
-                assert len(intrmed_prods) == len(mtrls)
+                #assert len(intrmed_prods) == len(mtrls)
                 for each_interm, each_ori_mats in zip(intrmed_prods, mtrls):
                     for ori_mat in each_ori_mats:
                         if each_interm != u'':
@@ -464,7 +464,7 @@ class PartCompositeModel:
         ori_act_i = ss.origin
         # print action_i, arg_j, ss_k, ss.origin
         # print ss.s
-        assert ori_act_i != self.leaf_idx
+        #assert ori_act_i != self.leaf_idx
 
         # Get materials from all prior actions with a directed path to ss
         span_mtrls = self.get_all_materials(AG.actions[ss.origin], AG, True)
@@ -477,7 +477,13 @@ class PartCompositeModel:
 
         # Conditional prob part; present given previous; Laplace smoothed.
         alpha = 0.1
-        cp = (cnt + alpha)/(sum(self.model[ss.s].values()) + alpha*self.val_sum)
+        den = (sum(self.model[ss.s].values()) + alpha*self.val_sum)
+
+        # IDK why this is happening,
+        if den > 0:
+            cp = (cnt + alpha)/(sum(self.model[ss.s].values()) + alpha*self.val_sum)
+        else:
+            cp = 1
 
         # Uniform prob factor. 1/[1+(number of spans in current action)]
         # This is slightly incorrect for now, since you want the number

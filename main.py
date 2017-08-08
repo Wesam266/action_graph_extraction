@@ -1,19 +1,20 @@
+from __future__ import unicode_literals
 import os, sys
-import nltk
 import codecs, argparse
 
-import agex_settings
 import graph_extractor
 
 
-def run_extractors(doi_fname, db_name, collection_name, set_suffix, em_iters):
+def run_extractors(doi_fname, db_name, collection_name, tar_task,
+                   parsed_file_suffix, em_iters):
 
     AGE = graph_extractor.ActionGraphExtractor()
     # Load training data and initialize connections sequentially.
-    with codecs.open(doi_fname, u'r') as doi_file_fh:
+    with codecs.open(doi_fname, 'r') as doi_file_fh:
         AGE.load_parsed_recipes(doi_file=doi_file_fh, db_name=db_name,
                                 collection_name=collection_name,
-                                set_suffix=set_suffix)
+                                tar_task=tar_task,
+                                parsed_file_suffix=parsed_file_suffix)
 
     # Do em_iters iterations of E and M.
     for i in range(em_iters):
@@ -32,7 +33,6 @@ def run_extractors(doi_fname, db_name, collection_name, set_suffix, em_iters):
         print(unicode(AG))
 
 
-
 def main():
     """
     Parse all command line args and call appropriate functions.
@@ -40,29 +40,36 @@ def main():
     """
     parser = argparse.ArgumentParser()
 
-    parser.add_argument(u'--doi_file', required=True,
-                        help=u'Path to text file with DOIs.')
-    parser.add_argument(u'--db_name',
+    parser.add_argument(u'-d', u'--db_name',
                         choices=[u'predsynth'],
                         default=u'predsynth',
-                        help=u'Name of database to read in data from.')
-    parser.add_argument(u'--collection_name',
+                        help=u'Name of database data came from.')
+    parser.add_argument(u'-c', u'--collection_name',
                         choices=[u'annotated_papers', u'papers'],
                         default=u'annotated_papers',
-                        help=u'Name of Mongo collection to read from.')
-    parser.add_argument(u'--set_suffix',
-                        choices=[u'train', u'test', u'dev', u'example'],
-                        default=u'train',
-                        help=u'Suffix of the output directory.')
-    parser.add_argument(u'--em_iters', type=int,
+                        help=u'Mongo collection data came from.')
+    parser.add_argument(u'-t', u'--tar_task',
+                        choices=['age'],
+                        default='age',
+                        help=u'Target task of data; says which directory to '
+                             u'read')
+    parser.add_argument(u'-s', u'--parsed_file_suffix',
                         required=True,
-                        help=u'Number of EM iterations to perform.')
+                        choices=['deps_heu_parsed'],
+                        help=u'Suffix for the json files which get written. '
+                             u'This is to allow data parsed in different ways '
+                             u'to remain side by side')
+    parser.add_argument(u'-f', u'--doi_file',
+                        required=True, help=u'Path to text file with DOIs.')
+    parser.add_argument(u'--em_iters', type=int, required=True,
+                        help=u'Iterations of EM to run.')
     cl_args = parser.parse_args()
 
     run_extractors(doi_fname=cl_args.doi_file,
                    db_name=cl_args.db_name,
                    collection_name=cl_args.collection_name,
-                   set_suffix=cl_args.set_suffix,
+                   tar_task=cl_args.tar_task,
+                   parsed_file_suffix=cl_args.parsed_file_suffix,
                    em_iters=cl_args.em_iters)
 
 

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import numpy as np
 import cPickle as pickle
 import os, sys, codecs
@@ -46,8 +47,8 @@ class ActionGraphExtractor:
         self.partCompositeModel.load(os.path.join(save_dir, agex_settings.PART_COMP_MODEL_FILE))
         self.apparatusModel.load(os.path.join(save_dir, agex_settings.APP_MODEL_FILE))
 
-    def load_parsed_recipes(self, doi_file, db_name, collection_name,
-                            set_suffix):
+    def load_parsed_recipes(self, doi_file, db_name, collection_name, tar_task,
+                            parsed_file_suffix):
         """
         Take an opened file with dois in it and read the parsed papers from
         disk.
@@ -63,7 +64,7 @@ class ActionGraphExtractor:
             # Get paper data we care about.
             actions_li = utils.read_parsed_paper(
                 doi_str, db_name=db_name, collection_name=collection_name,
-                set_suffix=set_suffix)
+                tar_task=tar_task, parsed_file_suffix=parsed_file_suffix)
             if actions_li:
                 print(u'Read: {}'.format(doi_line))
                 self.actionGraphs.append(graph_elements.ActionGraph(
@@ -260,12 +261,6 @@ class ActionGraphExtractor:
                                 new_p = self.evaluate_models(AG)
 
                                 if new_p > p_AG:
-                                    # logging.debug('%s prob improved from %f to %f' % (AG, p_AG, new_p))
-                                    # logging.debug(prev_si, cur_si)
-                                    # logging.debug(ori_ap_str)
-                                    # logging.debug(ori_ac_str)
-                                    # logging.debug(AG.actions[a_prev])
-                                    # logging.debug(AG.actions[a_cur])
                                     print('Change:{} ; Prob improved from {:f} '
                                           'to {:f}'.format(num_changes,
                                                            p_AG, new_p))
@@ -297,8 +292,6 @@ class ActionGraphExtractor:
         num_changes = 0
         for i, AG in enumerate(self.actionGraphs):
             print(u'\n\nGraph {:d}: doi: {}'.format(i, AG.paper_doi))
-            sys.stdout.flush()
-            # logging.debug('graph %d' % i)
             num_changes_graph = self.local_search(AG)
             num_changes = num_changes + num_changes_graph
 
