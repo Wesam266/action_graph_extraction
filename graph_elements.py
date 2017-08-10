@@ -376,17 +376,15 @@ class ActionGraph():
 
         return nx_graph
 
-    def save_ag_as_nxgraph(self, path):
+    def save_ag_as_nxgraph(self, dest_dir, graph_suffix):
         """
         Save the action graph as a pickeled networkx graph to disk.
         :param path: string; path to directory to save graph in.
         :return: nx_graph
         """
-        # TODO: This needs to be more flexible. Allow for specification of
-        # either a learnt or seqinit suffix. --medium-priority.
         nx_graph = self.ag_to_nx()
-        temp_name = os.path.join(path,re.sub(u'/', u'-', self.paper_doi))
-        paper_nxg_path = temp_name + u'_learnt_nxg.pkl'
+        temp_name = os.path.join(dest_dir, re.sub(u'/', u'-', self.paper_doi))
+        paper_nxg_path = temp_name + '-' + graph_suffix + u'_nxg.pkl'
         nx.write_gpickle(nx_graph, paper_nxg_path)
         print(u'Wrote: {}'.format(paper_nxg_path))
         return nx_graph

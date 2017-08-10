@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 import numpy as np
 import cPickle as pickle
-import os, sys, codecs
+import os, sys, re
 import logging
 
 # My imports.
@@ -25,6 +25,7 @@ class ActionGraphExtractor:
 
         self.dump_dir = 'tmp'
 
+    # IDK what this is.
     def load_pretrained_models(self, load_dir):
         graph_fname = os.path.join(load_dir, agex_settings.ACTION_GRAPH_FILE)
         with open(graph_fname, 'r') as f:
@@ -36,6 +37,7 @@ class ActionGraphExtractor:
         self.partCompositeModel.load(os.path.join(load_dir, agex_settings.PART_COMP_MODEL_FILE))
         self.apparatusModel.load(os.path.join(load_dir, agex_settings.APP_MODEL_FILE))
 
+    # IDK what this is.
     def save_pretrained_models(self, save_dir):
         graph_fname = os.path.join(save_dir, agex_settings.ACTION_GRAPH_FILE)
         with open(graph_fname, 'r') as f:
@@ -47,6 +49,35 @@ class ActionGraphExtractor:
         self.partCompositeModel.load(os.path.join(save_dir, agex_settings.PART_COMP_MODEL_FILE))
         self.apparatusModel.load(os.path.join(save_dir, agex_settings.APP_MODEL_FILE))
 
+    def save_all_models(self, model_dir, extra_suffix=''):
+        """
+        Save all models as they are to the model_dir.
+        :param model_dir: string; path to directory for saving models. Function
+            passing this parameter must ensure that different (seq/kiddon)
+            models aren't over-writing each other.
+        :param extra_suffix: Any extra text to add to the file name.
+        :return:
+        """
+        self.opSigModel.save(
+            os.path.join(model_dir, agex_settings.OP_SIG_MODEL_FILE+extra_suffix))
+        self.rawMaterialModel.save(
+            os.path.join(model_dir, agex_settings.RAW_MATERIAL_MODEL_FILE+extra_suffix))
+        self.partCompositeModel.save(
+            os.path.join(model_dir, agex_settings.PART_COMP_MODEL_FILE+extra_suffix))
+        self.apparatusModel.save(
+            os.path.join(model_dir, agex_settings.APP_MODEL_FILE+extra_suffix))
+
+
+    def print_all_models(self):
+        """
+        Print all the learnt models.
+        :return: None.
+        """
+        self.opSigModel.print_model()
+        self.partCompositeModel.print_model()
+        self.apparatusModel.print_model()
+        self.rawMaterialModel.print_model()
+
     def load_parsed_recipes(self, doi_file, db_name, collection_name, tar_task,
                             parsed_file_suffix):
         """
@@ -55,23 +86,42 @@ class ActionGraphExtractor:
         :param doi_file: file object; each line is a doi.
         :param db_name: string; says which db data came from.
         :param collection_name: string; says which collection data came from.
-        :param set_suffix: string; says if this is the train/test/dev split.
+        :param tar_task:
+        :param parsed_file_suffix:
         :return: None.
         """
         recipe_count = 0
         for doi_line in doi_file:
             doi_str = doi_line.strip()
-            # Get paper data we care about.
-            actions_li = utils.read_parsed_paper(
-                doi_str, db_name=db_name, collection_name=collection_name,
-                tar_task=tar_task, parsed_file_suffix=parsed_file_suffix)
+            # Form path to JSON file.
+            paper_path = os.path.join(agex_settings.in_data_dir,
+                                      u'{:s}-{:s}-{:s}'.format(db_name,
+                                                               collection_name,
+                                                               tar_task),
+                                      re.sub(u'/', u'-', doi_str))
+            paper_path = paper_path + '-' + parsed_file_suffix + u'.json'
+            actions_li = utils.read_parsed_paper(paper_path)
             if actions_li:
-                print(u'Read: {}'.format(doi_line))
+                print(u'Read: {}'.format(paper_path))
                 self.actionGraphs.append(graph_elements.ActionGraph(
                     parsed_actions_li=actions_li, paper_doi=doi_str))
                 recipe_count += 1
 
         print(u'EXTRACTOR: Loaded {} recipes'.format(recipe_count))
+
+    def save_learnt_nxgraphs(self, dest_dir, graph_suffix):
+        """
+        Save action graphs to disk as networkx graphs.
+        :param dest_dir:
+        :param graph_suffix:
+        :return:
+        """
+        saved_count = 0
+        for learnt_ag in self.actionGraphs:
+            learnt_ag.save_ag_as_nxgraph(dest_dir=dest_dir,
+                                         graph_suffix=graph_suffix)
+            saved_count += 1
+        print('Wrote {:d} {:s} graphs'.format(saved_count, graph_suffix))
 
     def evaluate_models(self, AG, verbose=False):
         log_prob = np.log(1)
@@ -171,9 +221,9 @@ class ActionGraphExtractor:
             return False
 
         # Don't swap if swap causes intermediate to link to -1.
-        if ((ss2_sem_type is agex_settings.INTERMEDIATE_PRODUCT_TAG) and
+        if ((ss2_sem_type == agex_settings.INTERMEDIATE_PRODUCT_TAG) and
                 (ori1_i == -1)) or \
-            ((ss1_sem_type is agex_settings.INTERMEDIATE_PRODUCT_TAG) and
+            ((ss1_sem_type == agex_settings.INTERMEDIATE_PRODUCT_TAG) and
                 (ori2_i == -1)):
             return False
 
@@ -241,10 +291,12 @@ class ActionGraphExtractor:
 
         num_changes = 0
 
+        # I dont understand what this while loop is iterating over. This gets
+        # called when you do one local search for a good set of swaps for one
+        # graph. Doing multiple local search iterations without updating the
+        # model seems like a weird thing. I'm just setting max_iter to 1.
         while improved and iter < max_iter:
             assert not(iter > 0 and np.isinf(p_AG))
-            print(u'fishy iter: {:d}'.format(iter))
-            # logging.debug('iter: %d' % iter)
             improved = False
             prev_ss_idx = []
             for act_i, act in enumerate(AG.actions):
@@ -261,8 +313,8 @@ class ActionGraphExtractor:
                                 new_p = self.evaluate_models(AG)
 
                                 if new_p > p_AG:
-                                    print('Change:{} ; Prob improved from {:f} '
-                                          'to {:f}'.format(num_changes,
+                                    print('Swap:{:d} ; Prob improved from '
+                                          '{:f} to {:f}'.format(num_changes,
                                                            p_AG, new_p))
                                     p_AG = new_p
                                     improved = True
@@ -286,37 +338,19 @@ class ActionGraphExtractor:
 
         return num_changes
 
-
     def local_search_all(self):
         # find the best graph locally
         num_changes = 0
         for i, AG in enumerate(self.actionGraphs):
-            print(u'\n\nGraph {:d}: doi: {}'.format(i, AG.paper_doi))
+            print(u'Graph {:d}: doi: {}'.format(i, AG.paper_doi))
             num_changes_graph = self.local_search(AG)
             num_changes = num_changes + num_changes_graph
-
-            # if i % 100 == 0:
-            #     tmp_save_fname = os.path.join(self.dump_dir, 'actionGraphs_%d.pkl' % i)
-            #     with open(tmp_save_fname, 'w') as f:
-            #         pickle.dump(self.actionGraphs, f, pickle.HIGHEST_PROTOCOL)
-
         return num_changes
 
     def M_step_all(self):
-        print 'EXTRACTOR: M step all'
-        AGs = self.actionGraphs
+        cur_ag_li = self.actionGraphs
         # print self.actionGraphs
-        self.opSigModel.M_step(AGs)
-        self.partCompositeModel.M_step(AGs)
-        self.rawMaterialModel.M_step(AGs)
-        self.apparatusModel.M_step(AGs)
-
-    def print_all_models(self):
-        """
-        Print all the learnt models.
-        :return: None.
-        """
-        self.opSigModel.print_model()
-        self.partCompositeModel.print_model()
-        self.apparatusModel.print_model()
-        self.rawMaterialModel.print_model()
+        self.opSigModel.M_step(cur_ag_li)
+        self.partCompositeModel.M_step(cur_ag_li)
+        self.rawMaterialModel.M_step(cur_ag_li)
+        self.apparatusModel.M_step(cur_ag_li)

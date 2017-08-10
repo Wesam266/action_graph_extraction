@@ -1,2 +1,4 @@
 
 *.pyc
+# Ignore the models directory.
+models/

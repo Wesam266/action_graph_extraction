@@ -21,11 +21,12 @@ import agex_settings
 # Print out current models in each M_step.
 VERBOSE = False
 
+
 class OpSigModel:
     """
     Model defines a distribution over the verb signatures for each op (verb)
     """
-    def __init__(self, prior_w = 0.1):
+    def __init__(self, prior_w=0.1):
         self.op_sig_cnts = np.array([0] * 8).astype(float)
         # The dict with the distributions over the op signatures for each
         # verb type.
@@ -36,6 +37,7 @@ class OpSigModel:
     def save(self, fname):
         with open(fname, 'w') as f:
             pickle.dump((self.op_sig_cnts, self.op_sig_model_dict), f, pickle.HIGHEST_PROTOCOL)
+        print('Wrote model to: {}'.format(fname))
 
     def load(self, fname):
         with open(fname, 'r') as f:
@@ -89,17 +91,17 @@ class OpSigModel:
     def get_opSig_from_idx(self, idx):
         # Get a binary representation of idx as a string.
         bit_str = format(idx, '03b')
-        assert len(bit_str) is 3
+        assert len(bit_str) == 3
 
         sig_set = set()
         is_leaf = False
-        if bit_str[0] is '1':
+        if bit_str[0] == '1':
             sig_set = sig_set.union(['DOBJ'])
 
-        if bit_str[1] is '1':
+        if bit_str[1] == '1':
             sig_set = sig_set.union(['PP'])
 
-        if bit_str[2] is '1':
+        if bit_str[2] == '1':
             is_leaf = True
 
         return sig_set, is_leaf
@@ -152,7 +154,6 @@ class OpSigModel:
         if VERBOSE:
             self.print_model()
 
-
     def evaluate(self, actionGraph):
         """
         Evaluate probability of current action graph under the existing model.
@@ -187,6 +188,7 @@ class RawMaterialModel:
     def save(self, fname):
         with open(fname, 'w') as f:
             pickle.dump(self.model, f, pickle.HIGHEST_PROTOCOL)
+        print('Wrote model to: {}'.format(fname))
 
     def load(self, fname):
         with open(fname, 'r') as f:
@@ -266,6 +268,7 @@ class ApparatusModel:
     def save(self, fname):
         with open(fname, 'w') as f:
             pickle.dump(self.model, f, pickle.HIGHEST_PROTOCOL)
+        print('Wrote model to: {}'.format(fname))
 
     def load(self, fname):
         with open(fname, 'r') as f:
@@ -275,7 +278,6 @@ class ApparatusModel:
         print('Apparatus Model: ')
         pprint.pprint(dict(self.model))
 
-
     def get_all_apparatus(self, action, AG):
         aprts = []
         for arg in action.ARGs:
@@ -283,7 +285,7 @@ class ApparatusModel:
                 for ss in arg.str_spans:
                     if ss.s:
                         aprts.append(ss.s)
-                    # elif recursive and (ss.origin is not None) and \
+                    # elif recursive and (ss.origin != None) and \
                     #         (ss.origin != self.leaf_idx):
                     #     aprts.extend(self.get_all_apparatus(AG.actions[ss.origin], AG, recursive))
         return aprts
@@ -322,7 +324,6 @@ class ApparatusModel:
 
         if VERBOSE:
             self.print_model()
-
 
     def evaluate(self, action_i, arg_j, ss_k, AG):
         """
@@ -372,7 +373,6 @@ class PartCompositeModel:
         # not really using the Counters abilities.
         self.model = defaultdict(Counter)
         self.leaf_idx = leaf_idx
-        pass
 
     def reset(self):
         self.model = defaultdict(Counter)
@@ -380,6 +380,7 @@ class PartCompositeModel:
     def save(self, fname):
         with open(fname, 'w') as f:
             pickle.dump(self.model, f, pickle.HIGHEST_PROTOCOL)
+        print('Wrote model to: {}'.format(fname))
 
     def load(self, fname):
         with open(fname, 'r') as f:
@@ -394,14 +395,13 @@ class PartCompositeModel:
 
     def get_all_materials(self, action, AG, recursive):
         all_materials = []
-
         for arg in action.ARGs:
             if arg.sem_type == 'material' or arg.sem_type == 'intrmed':
                 for ss in arg.str_spans:
                     all_materials.append(ss.s)
                     if recursive and ss.origin != self.leaf_idx:
-                        all_materials.extend(self.get_all_materials(AG.actions[ss.origin], AG, recursive))
-
+                        all_materials.extend(self.get_all_materials(
+                            AG.actions[ss.origin], AG, recursive))
         return all_materials
 
     def get_action_intermeds(self, action):
@@ -422,7 +422,7 @@ class PartCompositeModel:
                 # path to the current string span.
                 mtrls = list()
                 for arg in action.ARGs:
-                    if arg.sem_type is 'intrmed':
+                    if arg.sem_type == 'intrmed':
                         for ss in arg.str_spans:
                             # Get all materials from all the actions with a
                             # directed path to the current string span.
@@ -431,7 +431,7 @@ class PartCompositeModel:
                             mtrls.append(ori_mtrls)
                 # Ideally the length of intermed_prods and mtrls should
                 # be the same.
-                #assert len(intrmed_prods) == len(mtrls)
+                assert len(intrmed_prods) == len(mtrls)
                 for each_interm, each_ori_mats in zip(intrmed_prods, mtrls):
                     for ori_mat in each_ori_mats:
                         if each_interm != u'':
@@ -449,7 +449,6 @@ class PartCompositeModel:
 
         if VERBOSE:
             self.print_model()
-
 
     def evaluate(self, action_i, arg_j, ss_k, AG):
         """
@@ -477,13 +476,8 @@ class PartCompositeModel:
 
         # Conditional prob part; present given previous; Laplace smoothed.
         alpha = 0.1
-        den = (sum(self.model[ss.s].values()) + alpha*self.val_sum)
 
-        # IDK why this is happening,
-        if den > 0:
-            cp = (cnt + alpha)/(sum(self.model[ss.s].values()) + alpha*self.val_sum)
-        else:
-            cp = 1
+        cp = (cnt + alpha)/(sum(self.model[ss.s].values()) + alpha*self.val_sum)
 
         # Uniform prob factor. 1/[1+(number of spans in current action)]
         # This is slightly incorrect for now, since you want the number
