@@ -7,9 +7,13 @@ import agex_settings
 
 
 class StringSpan:
-    def __init__(self, s):
+    def __init__(self, s, back_ref):
         self.s = s.strip()
         self.origin = None
+        # A formatted string "{:d}_{:d}_{:d}" which says which paragraph
+        # sentence and paragraph the span came from. Repeated with spaces
+        # for as many tokens in the string span.
+        self.back_ref = back_ref
 
     def set_origin(self, i):
         self.origin = i
@@ -21,9 +25,10 @@ class StringSpan:
         :return: dict
         """
         span_d = {
-            u'str_span': self.s,
-            u'origin': self.origin,
-            u'ss_id': None  # id of the string span has to be set below.
+            'str_span': self.s,
+            'back_ref': self.back_ref,
+            'origin': self.origin,
+            'ss_id': None  # id of the string span has to be set below.
         }
         return span_d
 
@@ -37,15 +42,14 @@ class StringSpan:
 
 
 class Argument:
-    def __init__(self, text, syn_type, sem_type, prep='', origin=-1):
+    def __init__(self, text, back_refs, syn_type, sem_type, prep='', origin=-1):
         self.syn_type = syn_type
         self.sem_type = sem_type
         self.str_spans = []
         self.isImplicit = True
         self.prep = prep
-        # strs = filter(None, text) #To remove empty string spans
-        for s in text:
-            self.str_spans.append(StringSpan(s))
+        for s, back_ref in zip(text, back_refs):
+            self.str_spans.append(StringSpan(s, back_ref))
             self.str_spans[-1].set_origin(origin)  # Clever.
 
     # def get_str_in_span(self, k):
@@ -103,33 +107,45 @@ class Action:
         self.ARGs = list()
         self.is_leaf = False
         self.op = parsed_action_dict[u'operation']
+        self.back_ref = parsed_action_dict['operation_refs']
 
         materials = copy.deepcopy(parsed_action_dict[u'mat_nsubjpass'])
-        materials.extend(parsed_action_dict[u'mat_prepp'])
-
+        mat_refs = copy.deepcopy(parsed_action_dict[u'mat_nsubjpass_refs'])
+        # Do something like this for int and app too in case you use prep
+        # phrases in future.
+        # materials.extend(parsed_action_dict[u'mat_prepp'])
         intermeds = copy.deepcopy(parsed_action_dict[u'int_nsubjpass'])
-        intermeds.extend(parsed_action_dict[u'int_prepp'])
-
+        int_refs = copy.deepcopy(parsed_action_dict[u'int_nsubjpass_refs'])
         apparatus = copy.deepcopy(parsed_action_dict[u'app_nsubjpass'])
-        apparatus.extend(parsed_action_dict[u'app_prepp'])
+        app_refs = copy.deepcopy(parsed_action_dict[u'app_nsubjpass_refs'])
 
         # Removing these empty strings for now because we're conditionally
         # adding them below but idk if I should do this. I added the empty
         # strings as a hack to solve a different problem so I think its okay.
-        materials = [mat for mat in materials if mat != u' ']
-        intermeds = [int for int in intermeds if int != u' ']
-        apparatus = [app for app in apparatus if app != u' ']
+        materials = [mat for mat in materials if mat != ' ']
+        mat_refs = [ref for ref in mat_refs if ref != ' ']
+        intermeds = [int for int in intermeds if int != ' ']
+        int_refs = [ref for ref in int_refs if ref != ' ']
+        apparatus = [app for app in apparatus if app != ' ']
+        app_refs = [ref for ref in app_refs if ref != ' ']
 
         # Add an implicit argument only if there are no apparatus or intermeds.
         # Different from what the paper does.
         if len(apparatus) == 0:
             apparatus.append('')  # Implicit argument
+            app_refs.append('')
         if len(intermeds) == 0:
             intermeds.append('')  # Implicit argument.
+            int_refs.append('')
         # Information about DOBJ or PP needs to come from a dependency parse.
-        self.ARGs.append(Argument(materials, u'DOBJ', u'material', origin=agex_settings.LEAF_INDEX))
-        self.ARGs.append(Argument(apparatus, u'DOBJ', u'apparatus', origin=agex_settings.LEAF_INDEX))
-        self.ARGs.append(Argument(intermeds, u'DOBJ', u'intrmed'))
+        self.ARGs.append(Argument(text=materials, back_refs=mat_refs,
+                                  syn_type='DOBJ', sem_type='material',
+                                  origin=agex_settings.LEAF_INDEX))
+        self.ARGs.append(Argument(text=apparatus, back_refs=app_refs,
+                                  syn_type='DOBJ', sem_type='apparatus',
+                                  origin=agex_settings.LEAF_INDEX))
+        self.ARGs.append(Argument(text=intermeds, back_refs=int_refs,
+                                  syn_type='DOBJ', sem_type='intrmed'))
 
     def set_isLeaf(self):
         self.is_leaf = True
@@ -173,9 +189,10 @@ class Action:
         """
         act_list = list()
         act_node = {
-            u'operation': self.op,
-            u'act_id': None,  # Index of the action which *HAS* to be set.
-            u'is_arg': False  # Its an operation if its not an argument.
+            'operation': self.op,
+            'back_ref': self.back_ref,
+            'act_id': None,  # Index of the action which *HAS* to be set.
+            'is_arg': False  # Its an operation if its not an argument.
         }
         act_list.extend([act_node])
         for arg_idx, ARG in enumerate(self.ARGs):
@@ -282,14 +299,14 @@ class ActionGraph():
             # Ideally I should be able to check is_arg but idk if that works
             # as it should.
             if node_dict[u'str_span'] != u'':
-                out_str = u'{}{}{}_{}'.format(node_dict[u'act_id'],
-                                              node_dict[u'arg_id'],
-                                              node_dict[u'ss_id'],
-                                              node_dict[u'str_span'])
+                out_str = u'{}_{}_{}_{}'.format(node_dict[u'act_id'],
+                                                node_dict[u'arg_id'],
+                                                node_dict[u'ss_id'],
+                                                node_dict[u'str_span'])
             else:
-                out_str = u'{}{}{}_impl_arg'.format(node_dict[u'act_id'],
-                                                    node_dict[u'arg_id'],
-                                                    node_dict[u'ss_id'])
+                out_str = u'{}_{}_{}_impl_arg'.format(node_dict[u'act_id'],
+                                                      node_dict[u'arg_id'],
+                                                      node_dict[u'ss_id'])
             return out_str
 
     def _nx_get_edges(self, act_nodes):
@@ -313,7 +330,7 @@ class ActionGraph():
                 if node[u'is_arg'] == False:
                     op_node = node
                 # Connect up intermediates to their origins.
-                if node[u'is_arg'] and node[u'sem_type'] == u'intrmed':
+                if node[u'is_arg'] and node[u'origin'] != -1:
                     # Get the source and dest.
                     source = origin_id_map[node[u'origin']]
                     dest = node[u'id']
@@ -402,8 +419,8 @@ class ActionGraph():
 # Some hacky test code. This could go elsewhere but idc for now.
 def test_seq():
     paper_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
-                 u'predsynth-annotated_papers-train/' \
-                 u'10.1016-j.apcatb.2008.07.007_parsed.json'
+                 u'predsynth-annotated_papers-age/' \
+                 u'10.1016-j.jallcom.2015.07.162-deps_heu_parsed.json'
 
     with codecs.open(paper_path, u'r', u'utf-8') as fp:
         paper_dict = json.load(fp, encoding=u'utf-8')
@@ -416,8 +433,8 @@ def test_seq():
 
 def test_nx():
     paper_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
-                 u'predsynth-annotated_papers-train/' \
-                 u'10.1016-j.apcatb.2008.07.007_parsed.json'
+                 u'predsynth-annotated_papers-age/' \
+                 u'10.1016-j.jallcom.2015.07.162-deps_heu_parsed.json'
 
     with codecs.open(paper_path, u'r', u'utf-8') as fp:
         paper_dict = json.load(fp, encoding=u'utf-8')
@@ -427,24 +444,24 @@ def test_nx():
     AG = ActionGraph(parsed_actions_li=actions_li, paper_doi=paper_doi)
     print(AG)
     graph = AG.ag_to_nx()
-    pprint.pprint(graph.nodes())
+    pprint.pprint(graph.node)
     pprint.pprint(graph.edges())
 
 
 def test_nx_write():
     paper_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
-                 u'predsynth-annotated_papers-train/' \
-                 u'10.1016-j.apcatb.2008.07.007_parsed.json'
+                 u'predsynth-annotated_papers-age/' \
+                 u'10.1016-j.jallcom.2015.07.162-deps_heu_parsed.json'
     write_path = u'/iesl/canvas/smysore/material_science_ag/papers_data_json/' \
-                 u'predsynth-annotated_papers-example/'
+                 u'predsynth-annotated_papers-age-example/'
     with codecs.open(paper_path, u'r', u'utf-8') as fp:
         paper_dict = json.load(fp, encoding=u'utf-8')
 
     actions_li = paper_dict[u'actions']
     paper_doi = paper_dict[u'doi']
     AG = ActionGraph(parsed_actions_li=actions_li, paper_doi=paper_doi)
-    graph = AG.save_ag_as_nxgraph(write_path)
-    pprint.pprint(graph.nodes())
+    graph = AG.save_ag_as_nxgraph(write_path, graph_suffix='seq_test')
+    pprint.pprint(graph.node)
     pprint.pprint(graph.edges())
 
 
