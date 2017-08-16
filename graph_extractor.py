@@ -213,19 +213,19 @@ class ActionGraphExtractor:
         # same origin, no need to swap
         if ori1_i == ori2_i:
             # print "Same origin"
-            return False
+            return False, ss1, ss2
 
         # output to previous act is impossible
         if ori1_i >= act2_i or ori2_i >= act1_i:
             # print "Origin greater than action"
-            return False
+            return False, ss1, ss2
 
         # Don't swap if swap causes intermediate to link to -1.
         if ((ss2_sem_type == agex_settings.INTERMEDIATE_PRODUCT_TAG) and
                 (ori1_i == -1)) or \
             ((ss1_sem_type == agex_settings.INTERMEDIATE_PRODUCT_TAG) and
                 (ori2_i == -1)):
-            return False
+            return False, ss1, ss2
 
         arg1 = AG.actions[act1_i].ARGs[arg1_j]
         arg2 = AG.actions[act2_i].ARGs[arg2_j]
@@ -238,7 +238,7 @@ class ActionGraphExtractor:
         if arg1.syn_type == 'DOBJ' and ss1.s == '' and ori2_i == self.leaf_idx \
         or arg2.syn_type == 'DOBJ' and ss2.s == '' and ori1_i == self.leaf_idx:
             # print "no str_span, cannot switch to -1"
-            return False
+            return False, ss1, ss2
 
         act1 = AG.actions[act1_i]
         act2 = AG.actions[act2_i]
@@ -281,7 +281,7 @@ class ActionGraphExtractor:
         #     act1.update_isLeaf()
         #     act2.update_isLeaf()
         #     #TODO -Update implicit argument sem type
-        return True
+        return True, ss1, ss2
 
     def local_search(self, AG):
         improved = True
@@ -308,7 +308,7 @@ class ActionGraphExtractor:
                             a_cur, _, _ = cur_si
                             # ori_ap_str = AG.actions[a_prev].__str__()
                             # ori_ac_str = AG.actions[a_cur].__str__()
-                            swapped = self.OP_2SWAP(AG, prev_si, cur_si)
+                            swapped, ss_prev, ss_cur = self.OP_2SWAP(AG, prev_si, cur_si)
                             if swapped:
                                 new_p = self.evaluate_models(AG)
 
@@ -316,12 +316,15 @@ class ActionGraphExtractor:
                                     print('Swap:{:d} ; Prob improved from '
                                           '{:f} to {:f}'.format(num_changes,
                                                            p_AG, new_p))
+                                    # Print the spans if debugging :-P
+                                    # print(ss_prev)
+                                    # print(ss_cur)
                                     p_AG = new_p
                                     improved = True
                                     num_changes = num_changes + 1
 
                                 else:
-                                    swapped_back = self.OP_2SWAP(AG, prev_si, cur_si)
+                                    swapped_back, _, _ = self.OP_2SWAP(AG, prev_si, cur_si)
 
                                     if not swapped_back:
                                         print 'error'
@@ -330,7 +333,7 @@ class ActionGraphExtractor:
                                     swapped_back_p = self.evaluate_models(AG)
                                     if swapped_back_p != p_AG:
                                        print 'error, not swapped back to the same graph'
-                                       tmp = self.OP_2SWAP(AG, prev_si, cur_si)
+                                       tmp, _, _ = self.OP_2SWAP(AG, prev_si, cur_si)
                                     assert swapped_back_p == p_AG
 
                         prev_ss_idx.append(cur_si)

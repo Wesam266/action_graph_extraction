@@ -43,9 +43,9 @@ class OpSigModel:
         with open(fname, 'r') as f:
             self.op_sig_cnts, self.op_sig_model_dict = pickle.load(f)
 
-    def print_model(self):
+    def print_model(self, stream=None):
         print('Opsig model: ')
-        pprint.pprint(self.op_sig_model_dict)
+        pprint.pprint(self.op_sig_model_dict, stream=stream)
 
     def reset(self):
         self.op_sig_cnts = np.array([0] * 8).astype(float)
@@ -194,9 +194,9 @@ class RawMaterialModel:
         with open(fname, 'r') as f:
             self.model = pickle.load(f)
 
-    def print_model(self):
+    def print_model(self, stream=None):
         print('Raw material model: ')
-        pprint.pprint(dict(self.model))
+        pprint.pprint(dict(self.model), stream=stream)
 
     def M_step(self, actionGraphs):
         self.reset()
@@ -274,9 +274,9 @@ class ApparatusModel:
         with open(fname, 'r') as f:
             self.model = pickle.load(f)
 
-    def print_model(self):
+    def print_model(self, stream=None):
         print('Apparatus Model: ')
-        pprint.pprint(dict(self.model))
+        pprint.pprint(dict(self.model), stream=stream)
 
     def get_all_apparatus(self, action, AG):
         aprts = []

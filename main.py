@@ -199,3 +199,6 @@ def main():
 
 if __name__ == u'__main__':
     main()
+    # run_extractor(db_name='predsynth', collection_name='annotated_papers',
+    #               tar_task='age', parsed_file_suffix='deps_heu_parsed',
+    #               doi_file=sys.argv[1], model_dir='', em_iters=5, term_min_swaps=5)
